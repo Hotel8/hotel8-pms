@@ -21,7 +21,9 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use hotel8::pms::contracts::{FrontOfficeStatus, HousekeepingStatus, ReservationStatus};
-use hotel8_pms_server::state_machine::{BlockState, EventState, FolioState, PmsState, ReservationState};
+use hotel8_pms_server::state_machine::{
+    BlockState, EventState, FolioState, PmsState, ReservationState,
+};
 
 // ── 1. Reservation lifecycle (front_desk guards) ───────────────────────────
 
@@ -127,7 +129,10 @@ fn block_next_status_table_matches_handler() {
         .map(|next| next.label())
         .collect()
     };
-    assert_eq!(table(BlockState::Provisional), vec!["DEFINITIVE", "CANCELLED"]);
+    assert_eq!(
+        table(BlockState::Provisional),
+        vec!["DEFINITIVE", "CANCELLED"]
+    );
     assert_eq!(table(BlockState::Definitive), vec!["RELEASED", "CANCELLED"]);
     assert!(table(BlockState::Released).is_empty());
     assert!(table(BlockState::Cancelled).is_empty());
@@ -148,14 +153,21 @@ fn event_lifecycle_is_ordered() {
 #[test]
 fn availability_formula_physical_minus_ooo_oos_minus_sold() {
     // handlers::availability::available_rooms — §5.5 of the PMS design.
-    assert_eq!(hotel8_pms_server::handlers::availability::available_rooms(100, 3, 2, 95, 20), 75);
+    assert_eq!(
+        hotel8_pms_server::handlers::availability::available_rooms(100, 3, 2, 95, 20),
+        75
+    );
 }
 
 #[test]
 fn sell_limit_caps_but_does_not_extend() {
     let f = hotel8_pms_server::handlers::availability::available_rooms;
     assert_eq!(f(100, 0, 0, 50, 0), 50, "limit below physical caps");
-    assert_eq!(f(100, 0, 0, 200, 0), 100, "limit above physical never extends");
+    assert_eq!(
+        f(100, 0, 0, 200, 0),
+        100,
+        "limit above physical never extends"
+    );
 }
 
 #[test]
@@ -185,8 +197,13 @@ fn room_status_displays_are_db_labels() {
 #[test]
 fn status_filter_whitelist_accepts_res_status_labels() {
     // CONFIRMED/CHECKED_IN/CHECKED_OUT/NO_SHOW/CANCELLED (pms.res_status).
-    for s in ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "NO_SHOW", "CANCELLED"]
-    {
+    for s in [
+        "CONFIRMED",
+        "CHECKED_IN",
+        "CHECKED_OUT",
+        "NO_SHOW",
+        "CANCELLED",
+    ] {
         let ok = matches!(
             s,
             "CONFIRMED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW" | "CANCELLED"
@@ -228,7 +245,10 @@ fn digital_key_transitions_follow_the_state_machine() {
     };
     assert!(legal("INACTIVE", "ACTIVE"));
     assert!(legal("ACTIVE", "REVOKED"));
-    assert!(!legal("INACTIVE", "REVOKED"), "cannot revoke an un-activated key");
+    assert!(
+        !legal("INACTIVE", "REVOKED"),
+        "cannot revoke an un-activated key"
+    );
     assert!(!legal("ACTIVE", "ACTIVE"), "no double activation");
     assert!(!legal("REVOKED", "ACTIVE"), "revocation is terminal");
 }

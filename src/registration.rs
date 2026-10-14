@@ -8,23 +8,21 @@
 //! Output via `--print-registration` flag. See `sentin8/design/sentin8-service-self-registration-design.md`.
 
 use sentin8::registration::{
-    AdminScope, AdminUi, AdminUiPage, PgRole, Registration, SqlMigration,
-    PolicySetDecl, RelationDecl, M2mGrant, EventTriggerDecl,
+    AdminScope, AdminUi, AdminUiPage, EventTriggerDecl, M2mGrant, PgRole, PolicySetDecl,
+    Registration, RelationDecl, SqlMigration,
 };
 use utoipa::OpenApi;
 
-const PG_ROLES: &[PgRole] = &[
-    PgRole {
-        scope: "hotel8:pms:read,hotel8:pms:write",
-        role: "hotel8_pms_service",
-        bypass_rls: false,
-        // DBX (§6.6): grants + scope-map rows live in the hotel8 vertical
-        // database only (database-per-vertical, schema-per-service).
-        database: "hotel8",
-        // This service owns all its reads — no cross-schema grants.
-        cross_schema_grants: &[],
-    },
-];
+const PG_ROLES: &[PgRole] = &[PgRole {
+    scope: "hotel8:pms:read,hotel8:pms:write",
+    role: "hotel8_pms_service",
+    bypass_rls: false,
+    // DBX (§6.6): grants + scope-map rows live in the hotel8 vertical
+    // database only (database-per-vertical, schema-per-service).
+    database: "hotel8",
+    // This service owns all its reads — no cross-schema grants.
+    cross_schema_grants: &[],
+}];
 
 /// M2M DCR scope grants (self-registration design §3.11). One entry per
 /// workload this service registers via DCR; `vertical enroll` upserts
@@ -36,11 +34,19 @@ const PG_ROLES: &[PgRole] = &[
 const M2M_GRANTS: &[M2mGrant] = &[
     M2mGrant {
         workload: "hotel8:pms",
-        scopes: &["sentin8:bus:produce", "sentin8:bus:consume", "sentin8:stat:measure"],
+        scopes: &[
+            "sentin8:bus:produce",
+            "sentin8:bus:consume",
+            "sentin8:stat:measure",
+        ],
     },
     M2mGrant {
         workload: "pms",
-        scopes: &["sentin8:bus:produce", "sentin8:bus:consume", "sentin8:stat:measure"],
+        scopes: &[
+            "sentin8:bus:produce",
+            "sentin8:bus:consume",
+            "sentin8:stat:measure",
+        ],
     },
     M2mGrant {
         workload: "pms-post",
@@ -65,7 +71,10 @@ const M2M_GRANTS: &[M2mGrant] = &[
     // Settlement lane (bill8): one DCR workload per scope-set.
     M2mGrant {
         workload: "pms-payments",
-        scopes: &["bill8:payments:charges:write", "bill8:payments:tokens:write"],
+        scopes: &[
+            "bill8:payments:charges:write",
+            "bill8:payments:tokens:write",
+        ],
     },
     M2mGrant {
         workload: "pms-ledger",
@@ -126,47 +135,203 @@ fn event_triggers() -> &'static [EventTriggerDecl] {
 }
 
 const ADMIN_SCOPES: &[AdminScope] = &[
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:admin" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:reservation:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:reservation:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:frontdesk:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:frontdesk:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:cashiering:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:cashiering:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:housekeeping:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:housekeeping:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:profile:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:profile:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:rate:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:rate:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:block:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:block:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:event:write" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:availability:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:report:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:eod:write" },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:admin",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:reservation:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:reservation:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:frontdesk:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:frontdesk:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:cashiering:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:cashiering:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:housekeeping:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:housekeeping:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:profile:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:profile:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:rate:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:rate:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:block:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:block:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:event:write",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:availability:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:report:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:eod:write",
+    },
     // Policy-admin surface (policy design §3.6; principles §6.0b per-service scope).
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:policy:read" },
-    AdminScope::Typed { role: "hotel8:pms:admin", scope: "hotel8:pms:policy:write" },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:policy:read",
+    },
+    AdminScope::Typed {
+        role: "hotel8:pms:admin",
+        scope: "hotel8:pms:policy:write",
+    },
 ];
 
 const ADMIN_UI_PAGES: &[AdminUiPage] = &[
-    AdminUiPage { route: "overview", label: "Overview", ui_endpoint: "/v1/admin/ui/overview", data_endpoint: "/v1/admin/overview", icon: "0xe1b1" },
-    AdminUiPage { route: "reservations", label: "Reservations", ui_endpoint: "/v1/admin/ui/reservations", data_endpoint: "/v1/admin/reservations", icon: "0xe23e" },
-    AdminUiPage { route: "frontdesk", label: "Front Desk", ui_endpoint: "/v1/admin/ui/frontdesk", data_endpoint: "/v1/admin/frontdesk", icon: "0xe621" },
-    AdminUiPage { route: "housekeeping", label: "Housekeeping", ui_endpoint: "/v1/admin/ui/housekeeping", data_endpoint: "/v1/admin/housekeeping", icon: "0xe167" },
-    AdminUiPage { route: "rates", label: "Rates", ui_endpoint: "/v1/admin/ui/rates", data_endpoint: "/v1/admin/rates", icon: "0xe4e8" },
-    AdminUiPage { route: "blocks", label: "Blocks", ui_endpoint: "/v1/admin/ui/blocks", data_endpoint: "/v1/admin/blocks", icon: "0xe0e1" },
-    AdminUiPage { route: "events", label: "Events", ui_endpoint: "/v1/admin/ui/events", data_endpoint: "/v1/admin/events", icon: "0xe44f" },
-    AdminUiPage { route: "reports", label: "Reports", ui_endpoint: "/v1/admin/ui/reports", data_endpoint: "/v1/admin/reports", icon: "0xe0a4" },
-    AdminUiPage { route: "settings", label: "Settings", ui_endpoint: "/v1/admin/ui/settings", data_endpoint: "/v1/admin/settings", icon: "0xe57f" },
-    AdminUiPage { route: "corporate", label: "Corporate", ui_endpoint: "/v1/admin/ui/corporate", data_endpoint: "/v1/admin/corporate", icon: "0xe7ef" },
-    AdminUiPage { route: "kiosk-config", label: "Kiosk Config", ui_endpoint: "/v1/admin/ui/kiosk-config", data_endpoint: "/v1/admin/kiosk-config", icon: "0xe57f" },    // Sentin8:Policy admin surface (Shield pattern).
-    AdminUiPage { route: "policy-sets", label: "Policy Sets", ui_endpoint: "/v1/admin/ui/policy-sets", data_endpoint: "/v1/admin/policy-sets", icon: "0xe8b8" },
-    AdminUiPage { route: "policy-decisions", label: "Policy Decisions", ui_endpoint: "/v1/admin/ui/policy-decisions", data_endpoint: "/v1/admin/policy-decisions", icon: "0xf070" },
-    AdminUiPage { route: "relations", label: "Relations", ui_endpoint: "/v1/admin/ui/relations", data_endpoint: "/v1/admin/relations", icon: "0xe572" },
-    AdminUiPage { route: "attributes", label: "Attributes", ui_endpoint: "/v1/admin/ui/attributes", data_endpoint: "/v1/admin/attributes", icon: "0xe8d3" },
+    AdminUiPage {
+        route: "overview",
+        label: "Overview",
+        ui_endpoint: "/v1/admin/ui/overview",
+        data_endpoint: "/v1/admin/overview",
+        icon: "0xe1b1",
+    },
+    AdminUiPage {
+        route: "reservations",
+        label: "Reservations",
+        ui_endpoint: "/v1/admin/ui/reservations",
+        data_endpoint: "/v1/admin/reservations",
+        icon: "0xe23e",
+    },
+    AdminUiPage {
+        route: "frontdesk",
+        label: "Front Desk",
+        ui_endpoint: "/v1/admin/ui/frontdesk",
+        data_endpoint: "/v1/admin/frontdesk",
+        icon: "0xe621",
+    },
+    AdminUiPage {
+        route: "housekeeping",
+        label: "Housekeeping",
+        ui_endpoint: "/v1/admin/ui/housekeeping",
+        data_endpoint: "/v1/admin/housekeeping",
+        icon: "0xe167",
+    },
+    AdminUiPage {
+        route: "rates",
+        label: "Rates",
+        ui_endpoint: "/v1/admin/ui/rates",
+        data_endpoint: "/v1/admin/rates",
+        icon: "0xe4e8",
+    },
+    AdminUiPage {
+        route: "blocks",
+        label: "Blocks",
+        ui_endpoint: "/v1/admin/ui/blocks",
+        data_endpoint: "/v1/admin/blocks",
+        icon: "0xe0e1",
+    },
+    AdminUiPage {
+        route: "events",
+        label: "Events",
+        ui_endpoint: "/v1/admin/ui/events",
+        data_endpoint: "/v1/admin/events",
+        icon: "0xe44f",
+    },
+    AdminUiPage {
+        route: "reports",
+        label: "Reports",
+        ui_endpoint: "/v1/admin/ui/reports",
+        data_endpoint: "/v1/admin/reports",
+        icon: "0xe0a4",
+    },
+    AdminUiPage {
+        route: "settings",
+        label: "Settings",
+        ui_endpoint: "/v1/admin/ui/settings",
+        data_endpoint: "/v1/admin/settings",
+        icon: "0xe57f",
+    },
+    AdminUiPage {
+        route: "corporate",
+        label: "Corporate",
+        ui_endpoint: "/v1/admin/ui/corporate",
+        data_endpoint: "/v1/admin/corporate",
+        icon: "0xe7ef",
+    },
+    AdminUiPage {
+        route: "kiosk-config",
+        label: "Kiosk Config",
+        ui_endpoint: "/v1/admin/ui/kiosk-config",
+        data_endpoint: "/v1/admin/kiosk-config",
+        icon: "0xe57f",
+    }, // Sentin8:Policy admin surface (Shield pattern).
+    AdminUiPage {
+        route: "policy-sets",
+        label: "Policy Sets",
+        ui_endpoint: "/v1/admin/ui/policy-sets",
+        data_endpoint: "/v1/admin/policy-sets",
+        icon: "0xe8b8",
+    },
+    AdminUiPage {
+        route: "policy-decisions",
+        label: "Policy Decisions",
+        ui_endpoint: "/v1/admin/ui/policy-decisions",
+        data_endpoint: "/v1/admin/policy-decisions",
+        icon: "0xf070",
+    },
+    AdminUiPage {
+        route: "relations",
+        label: "Relations",
+        ui_endpoint: "/v1/admin/ui/relations",
+        data_endpoint: "/v1/admin/relations",
+        icon: "0xe572",
+    },
+    AdminUiPage {
+        route: "attributes",
+        label: "Attributes",
+        ui_endpoint: "/v1/admin/ui/attributes",
+        data_endpoint: "/v1/admin/attributes",
+        icon: "0xe8d3",
+    },
 ];
 
 /// The Shield text of the declared scope-mirror set — public so the
@@ -217,9 +382,11 @@ pub fn print(section: Option<String>) -> anyhow::Result<()> {
             service_flag: "pms",
             pages: ADMIN_UI_PAGES,
         }),
-        sql_migrations: vec![
-            SqlMigration { version: 1, name: "init", sql: SQL_1_INIT },
-        ],
+        sql_migrations: vec![SqlMigration {
+            version: 1,
+            name: "init",
+            sql: SQL_1_INIT,
+        }],
         pg_roles: PG_ROLES,
         audit_findings: None,
         service_actions: None,

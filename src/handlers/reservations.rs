@@ -4,12 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Reservation handlers — CRUD + search.
+use crate::auth;
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
 
 /// `POST /v1/properties/{property_id}/reservations`
 #[utoipa::path(
@@ -30,7 +30,13 @@ pub async fn create_reservation(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -60,8 +66,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?;
     let res_id: uuid::Uuid = row.get("id");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:reservation:created", serde_json::json!({ "reservation_id": res_id, "confirmation_number": &conf }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:reservation:created",
+        serde_json::json!({ "reservation_id": res_id, "confirmation_number": &conf }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row_to_json(&row)))
 }
@@ -105,10 +118,19 @@ pub async fn search_reservations(
         .map(str::trim)
         .filter(|v| !v.is_empty());
     if let Some(status) = &status_filter {
-        if !["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "NO_SHOW", "CANCELLED"]
-            .contains(&&status[..])
+        if ![
+            "CONFIRMED",
+            "CHECKED_IN",
+            "CHECKED_OUT",
+            "NO_SHOW",
+            "CANCELLED",
+        ]
+        .contains(&&status[..])
         {
-            return Err((StatusCode::BAD_REQUEST, format!("unknown status filter: {status}")));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("unknown status filter: {status}"),
+            ));
         }
     }
     let guest_profile_id = params
@@ -173,19 +195,21 @@ pub async fn search_reservations(
         query = query
             .bind(status_filter.unwrap_or_default())
             .bind(guest_profile_id)
-            .bind(&last_name)
-            .bind(&confirmation);
+            .bind(last_name)
+            .bind(confirmation);
     } else if status_filter.is_some() || guest_profile_id.is_some() {
         query = query
             .bind(status_filter.unwrap_or_default().to_owned())
-            .bind(&last_name)
-            .bind(&confirmation);
+            .bind(last_name)
+            .bind(confirmation);
     } else {
-        query = query.bind(&last_name).bind(&confirmation);
+        query = query.bind(last_name).bind(confirmation);
     }
     let rows = query.fetch_all(&mut *conn).await.map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": rows.iter().map(row_to_json).collect::<Vec<_>>() })))
+    Ok(Json(
+        serde_json::json!({ "items": rows.iter().map(row_to_json).collect::<Vec<_>>() }),
+    ))
 }
 
 /// `GET /v1/properties/{property_id}/reservations/{res_id}`
@@ -207,7 +231,13 @@ pub async fn get_reservation(
     Path((property_id, res_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -216,10 +246,10 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .bind(property_id)
         .fetch_one(&mut *conn)
         .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"),
-        e => super::err_db(e),
-    })?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"),
+            e => super::err_db(e),
+        })?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row_to_json(&row)))
 }
@@ -230,7 +260,13 @@ pub async fn cancel_reservation(
     Path((property_id, res_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -240,8 +276,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .execute(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:reservation:cancelled", serde_json::json!({ "reservation_id": res_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:reservation:cancelled",
+        serde_json::json!({ "reservation_id": res_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -286,17 +329,32 @@ pub async fn split_reservation(
     _req: Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     // Get original reservation
     let orig = sqlx::query("SELECT * FROM pms.reservations WHERE id = $1 AND property_id = $2")
-        .bind(res_id).bind(property_id).fetch_one(&mut *conn).await
-        .map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"), e => super::err_db(e) })?;
+        .bind(res_id)
+        .bind(property_id)
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"),
+            e => super::err_db(e),
+        })?;
     let num_rooms: i32 = orig.get("num_rooms");
     if num_rooms <= 1 {
-        return Err((StatusCode::BAD_REQUEST, "Cannot split a single-room reservation".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Cannot split a single-room reservation".to_string(),
+        ));
     }
     // Create new reservation with same data but num_rooms = 1
     let new_conf = format!("RES-{}", chrono::Utc::now().format("%Y%m%d%H%M%S3"));
@@ -307,12 +365,26 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let new_id: uuid::Uuid = new_row.get("id");
     // Decrement original num_rooms
-    sqlx::query("UPDATE pms.reservations SET num_rooms = num_rooms - 1, updated_at = now() WHERE id = $1")
-        .bind(res_id).execute(&mut *conn).await.map_err(super::err_db)?;
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:reservation:split", serde_json::json!({ "original_id": res_id, "new_id": new_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    sqlx::query(
+        "UPDATE pms.reservations SET num_rooms = num_rooms - 1, updated_at = now() WHERE id = $1",
+    )
+    .bind(res_id)
+    .execute(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:reservation:split",
+        serde_json::json!({ "original_id": res_id, "new_id": new_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "original_reservation_id": res_id, "new_reservation_id": new_id, "new_confirmation_number": new_row.get::<String, _>("confirmation_number") })))
+    Ok(Json(
+        serde_json::json!({ "original_reservation_id": res_id, "new_reservation_id": new_id, "new_confirmation_number": new_row.get::<String, _>("confirmation_number") }),
+    ))
 }
 
 // ── Reservation upsell ──
@@ -324,19 +396,33 @@ pub async fn upsell_reservation(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let new_room_type_id = req.get("new_room_type_id").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok());
-    let new_rate_plan_id = req.get("new_rate_plan_id").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let new_room_type_id = req
+        .get("new_room_type_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let new_rate_plan_id = req
+        .get("new_rate_plan_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| uuid::Uuid::parse_str(s).ok());
     let row = sqlx::query("UPDATE pms.reservations SET room_type_id = COALESCE($3, room_type_id), rate_plan_id = COALESCE($4, rate_plan_id), updated_at = now() WHERE id = $1 AND property_id = $2 RETURNING id, confirmation_number")
         .bind(res_id).bind(property_id).bind(new_room_type_id).bind(new_rate_plan_id)
         .fetch_one(&mut *conn).await.map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"), e => super::err_db(e) })?;
     crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:reservation:upsold", serde_json::json!({ "reservation_id": res_id, "new_room_type_id": new_room_type_id, "new_rate_plan_id": new_rate_plan_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "reservation_id": row.get::<uuid::Uuid, _>("id"), "confirmation_number": row.get::<String, _>("confirmation_number"), "status": "upsold" })))
+    Ok(Json(
+        serde_json::json!({ "reservation_id": row.get::<uuid::Uuid, _>("id"), "confirmation_number": row.get::<String, _>("confirmation_number"), "status": "upsold" }),
+    ))
 }
 
 // ── fetchInstructions ──
@@ -347,18 +433,32 @@ pub async fn fetch_instructions(
     Path((property_id, res_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let res = sqlx::query("SELECT * FROM pms.reservations WHERE id = $1 AND property_id = $2")
-        .bind(res_id).bind(property_id).fetch_one(&mut *conn).await
-        .map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"), e => super::err_db(e) })?;
+        .bind(res_id)
+        .bind(property_id)
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"),
+            e => super::err_db(e),
+        })?;
     let profile_id: Option<uuid::Uuid> = res.get("guest_profile_id");
     let profile = if let Some(pid) = profile_id {
         sqlx::query("SELECT first_name, last_name, email, phone, loyalty_number FROM pms.guest_profiles WHERE id = $1").bind(pid)
             .fetch_optional(&mut *conn).await.map_err(super::err_db)?
-    } else { None };
+    } else {
+        None
+    };
     let comments = sqlx::query("SELECT id, comment_type, content, author, created_at FROM pms.reservation_comments WHERE reservation_id = $1 ORDER BY created_at")
         .bind(res_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
     let comment_items: Vec<serde_json::Value> = comments.iter().map(|r| serde_json::json!({
@@ -370,7 +470,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     let pkg_info = if let Some(ref pc) = package_code {
         sqlx::query("SELECT package_name, price::text as price FROM pms.packages WHERE property_id = $1 AND package_code = $2").bind(property_id).bind(pc)
             .fetch_optional(&mut *conn).await.map_err(super::err_db)?
-    } else { None };
+    } else {
+        None
+    };
     let profile_json = profile.map(|p| serde_json::json!({
         "first_name": p.get::<String, _>("first_name"), "last_name": p.get::<String, _>("last_name"),
         "email": p.get::<Option<String>, _>("email"), "phone": p.get::<Option<String>, _>("phone"),

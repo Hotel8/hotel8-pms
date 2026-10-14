@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Rate plan management handlers.
+use crate::auth;
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
 use hotel8::pms::contracts::{RatePlan, RatePlanCreate};
+use sqlx::Row;
 
 /// `POST /v1/properties/{property_id}/rate-plans`
 #[utoipa::path(
@@ -31,7 +31,13 @@ pub async fn create_rate_plan(
     Json(req): Json<RatePlanCreate>,
 ) -> Result<Json<RatePlan>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -60,8 +66,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .fetch_one(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:rate_plan:created", serde_json::json!({ "property_id": property_id, "rate_plan_code": &req.rate_plan_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:rate_plan:created",
+        serde_json::json!({ "property_id": property_id, "rate_plan_code": &req.rate_plan_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row_to_rate_plan(&row)))
 }
@@ -83,15 +96,22 @@ pub async fn list_rate_plans(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<Vec<RatePlan>>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let rows = sqlx::query("SELECT * FROM pms.rate_plans WHERE property_id = $1 ORDER BY rate_plan_code")
-        .bind(property_id)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(super::err_db)?;
+    let rows =
+        sqlx::query("SELECT * FROM pms.rate_plans WHERE property_id = $1 ORDER BY rate_plan_code")
+            .bind(property_id)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(rows.iter().map(row_to_rate_plan).collect()))
 }
@@ -102,7 +122,13 @@ pub async fn get_rate_plan(
     Path((property_id, plan_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<RatePlan>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -154,11 +180,20 @@ pub async fn create_rate_schedule(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let room_type_id: uuid::Uuid = req.get("room_type_id").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok())
+    let room_type_id: uuid::Uuid = req
+        .get("room_type_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| uuid::Uuid::parse_str(s).ok())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "room_type_id required".to_string()))?;
     // Dates bind as chrono::NaiveDate (never text) — a "date = text"
     // operator error came from untyped string binds reaching a date comparison.
@@ -169,8 +204,16 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     };
     let start_date = parse_date(req.get("start_date"), "2020-01-01");
     let end_date = parse_date(req.get("end_date"), "2030-12-31");
-    let rate_amount = req.get("rate_amount").and_then(|v| v.as_str()).unwrap_or("0");
-    let days_of_week = serde_json::to_value(req.get("days_of_week").cloned().unwrap_or(serde_json::json!(["MON","TUE","WED","THU","FRI","SAT","SUN"]))).unwrap_or(serde_json::json!(["MON","TUE","WED","THU","FRI","SAT","SUN"]));
+    let rate_amount = req
+        .get("rate_amount")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
+    let days_of_week = serde_json::to_value(req.get("days_of_week").cloned().unwrap_or(
+        serde_json::json!(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]),
+    ))
+    .unwrap_or(serde_json::json!([
+        "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
+    ]));
     let row = sqlx::query("INSERT INTO pms.rate_schedules (property_id, rate_plan_id, room_type_id, start_date, end_date, days_of_week, rate_amount, rate_amount_single, rate_amount_double, rate_amount_extra_adult, rate_amount_extra_child, package_code)
         SELECT $1, $2, $3, $4::date, $5::date, $6, $7::numeric, $8::numeric, $9::numeric, $10::numeric, $11::numeric, $12 WHERE NOT EXISTS (SELECT 1 FROM pms.rate_schedules WHERE rate_plan_id = $2 AND room_type_id = $3 AND start_date = $4::date AND end_date = $5::date)
         RETURNING id, start_date, end_date, rate_amount::text as rate_amount")
@@ -183,10 +226,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .bind(req.get("package_code").and_then(|v| v.as_str()))
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:rate_schedule:created", serde_json::json!({ "schedule_id": id, "rate_plan_id": plan_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:rate_schedule:created",
+        serde_json::json!({ "schedule_id": id, "rate_plan_id": plan_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": id, "rate_plan_id": plan_id, "room_type_id": room_type_id, "start_date": row.get::<chrono::NaiveDate, _>("start_date"), "end_date": row.get::<chrono::NaiveDate, _>("end_date"), "rate_amount": row.get::<String, _>("rate_amount") })))
+    Ok(Json(
+        serde_json::json!({ "id": id, "rate_plan_id": plan_id, "room_type_id": room_type_id, "start_date": row.get::<chrono::NaiveDate, _>("start_date"), "end_date": row.get::<chrono::NaiveDate, _>("end_date"), "rate_amount": row.get::<String, _>("rate_amount") }),
+    ))
 }
 
 pub async fn list_rate_schedules(
@@ -195,23 +247,34 @@ pub async fn list_rate_schedules(
     Path((_property_id, plan_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, room_type_id, start_date, end_date, days_of_week, rate_amount::text as rate_amount, rate_amount_single::text as rate_amount_single, rate_amount_double::text as rate_amount_double, package_code FROM pms.rate_schedules WHERE rate_plan_id = $1 ORDER BY start_date")
         .bind(plan_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"),
-        "room_type_id": r.get::<uuid::Uuid, _>("room_type_id"),
-        "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-        "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-        "days_of_week": r.get::<serde_json::Value, _>("days_of_week"),
-        "rate_amount": r.get::<String, _>("rate_amount"),
-        "rate_amount_single": r.get::<Option<String>, _>("rate_amount_single"),
-        "rate_amount_double": r.get::<Option<String>, _>("rate_amount_double"),
-        "package_code": r.get::<Option<String>, _>("package_code"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"),
+                "room_type_id": r.get::<uuid::Uuid, _>("room_type_id"),
+                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
+                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
+                "days_of_week": r.get::<serde_json::Value, _>("days_of_week"),
+                "rate_amount": r.get::<String, _>("rate_amount"),
+                "rate_amount_single": r.get::<Option<String>, _>("rate_amount_single"),
+                "rate_amount_double": r.get::<Option<String>, _>("rate_amount_double"),
+                "package_code": r.get::<Option<String>, _>("package_code"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
@@ -222,11 +285,21 @@ pub async fn delete_rate_schedule(
     Path((_property_id, _plan_id, schedule_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    sqlx::query("DELETE FROM pms.rate_schedules WHERE id = $1").bind(schedule_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("DELETE FROM pms.rate_schedules WHERE id = $1")
+        .bind(schedule_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -240,23 +313,47 @@ pub async fn create_package(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let package_code = req.get("package_code").and_then(|v| v.as_str()).unwrap_or("");
-    let package_name = req.get("package_name").and_then(|v| v.as_str()).unwrap_or("");
+    let package_code = req
+        .get("package_code")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let package_name = req
+        .get("package_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let quantity: i32 = req.get("quantity").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
     let price = req.get("price").and_then(|v| v.as_str()).unwrap_or("0");
-    let per_stay = req.get("per_stay").and_then(|v| v.as_bool()).unwrap_or(false);
+    let per_stay = req
+        .get("per_stay")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let row = sqlx::query("INSERT INTO pms.packages (property_id, package_code, package_name, quantity, price, per_stay) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, package_code, package_name, quantity, price::text as price, per_stay")
         .bind(property_id).bind(package_code).bind(package_name).bind(quantity).bind(price).bind(per_stay)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:package:created", serde_json::json!({ "package_id": id, "package_code": package_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:package:created",
+        serde_json::json!({ "package_id": id, "package_code": package_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": id, "package_code": row.get::<String, _>("package_code"), "package_name": row.get::<String, _>("package_name"), "quantity": row.get::<i32, _>("quantity"), "price": row.get::<String, _>("price"), "per_stay": row.get::<bool, _>("per_stay") })))
+    Ok(Json(
+        serde_json::json!({ "id": id, "package_code": row.get::<String, _>("package_code"), "package_name": row.get::<String, _>("package_name"), "quantity": row.get::<i32, _>("quantity"), "price": row.get::<String, _>("price"), "per_stay": row.get::<bool, _>("per_stay") }),
+    ))
 }
 
 pub async fn list_packages(
@@ -265,7 +362,13 @@ pub async fn list_packages(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -288,7 +391,13 @@ pub async fn list_negotiated_rate_plans(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -303,17 +412,22 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"),
-        "rate_plan_code": r.get::<String, _>("rate_plan_code"),
-        "rate_plan_name": r.get::<String, _>("rate_plan_name"),
-        "rate_category": r.get::<String, _>("rate_category"),
-        "currency_code": r.get::<String, _>("currency_code"),
-        "is_active": r.get::<bool, _>("is_active"),
-        "market_code": r.get::<Option<String>, _>("market_code"),
-        "source_code": r.get::<Option<String>, _>("source_code"),
-        "description": r.get::<Option<String>, _>("description"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"),
+                "rate_plan_code": r.get::<String, _>("rate_plan_code"),
+                "rate_plan_name": r.get::<String, _>("rate_plan_name"),
+                "rate_category": r.get::<String, _>("rate_category"),
+                "currency_code": r.get::<String, _>("currency_code"),
+                "is_active": r.get::<bool, _>("is_active"),
+                "market_code": r.get::<Option<String>, _>("market_code"),
+                "source_code": r.get::<Option<String>, _>("source_code"),
+                "description": r.get::<Option<String>, _>("description"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
@@ -325,19 +439,32 @@ pub async fn link_negotiated_rate_to_company(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let company_profile_id = req.get("company_profile_id").and_then(|v| v.as_str())
+    let company_profile_id = req
+        .get("company_profile_id")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| super::err_bad_request("company_profile_id required"))?;
     let company_uuid = uuid::Uuid::parse_str(company_profile_id)
         .map_err(|e| super::err_bad_request(&format!("invalid company_profile_id: {e}")))?;
     // Verify the rate plan is negotiated and belongs to this property
-    let rp = sqlx::query("SELECT id, is_negotiated FROM pms.rate_plans WHERE id = $1 AND property_id = $2")
-        .bind(rate_plan_id).bind(property_id)
-        .fetch_optional(&mut *conn).await.map_err(super::err_db)?
-        .ok_or_else(|| super::err_not_found("rate plan not found"))?;
+    let rp = sqlx::query(
+        "SELECT id, is_negotiated FROM pms.rate_plans WHERE id = $1 AND property_id = $2",
+    )
+    .bind(rate_plan_id)
+    .bind(property_id)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(super::err_db)?
+    .ok_or_else(|| super::err_not_found("rate plan not found"))?;
     if !rp.get::<bool, _>("is_negotiated") {
         return Err(super::err_bad_request("rate plan is not a negotiated plan"));
     }
@@ -354,7 +481,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:negotiated_rate:linked", serde_json::json!({ "property_id": property_id, "rate_plan_id": rate_plan_id, "company_profile_id": company_uuid }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "linked": true, "rate_plan_id": rate_plan_id, "company_profile_id": company_uuid })))
+    Ok(Json(
+        serde_json::json!({ "linked": true, "rate_plan_id": rate_plan_id, "company_profile_id": company_uuid }),
+    ))
 }
 
 // ── Promo Code validation ──
@@ -366,11 +495,19 @@ pub async fn validate_promo_code(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:rate:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:rate:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let promo_code = req.get("promo_code").and_then(|v| v.as_str())
+    let promo_code = req
+        .get("promo_code")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| super::err_bad_request("promo_code required"))?;
     let check_in = req.get("check_in").and_then(|v| v.as_str());
     let check_out = req.get("check_out").and_then(|v| v.as_str());
@@ -384,7 +521,11 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .fetch_optional(&mut *conn).await.map_err(super::err_db)?;
     let rp = match row {
         Some(r) => r,
-        None => return Ok(Json(serde_json::json!({ "valid": false, "reason": "promo code not found or inactive" }))),
+        None => {
+            return Ok(Json(
+                serde_json::json!({ "valid": false, "reason": "promo code not found or inactive" }),
+            ))
+        }
     };
     // Check MinLOS / MinAdvanceBooking if dates provided
     let min_los: Option<i32> = rp.get("min_los");
@@ -396,18 +537,35 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         let co_date = chrono::NaiveDate::parse_from_str(co, "%Y-%m-%d").ok();
         if let (Some(ci_d), Some(co_d)) = (ci_date, co_date) {
             let nights = (co_d - ci_d).num_days();
-            if let Some(min) = min_los { if nights < min.into() { warnings.push(format!("minimum length of stay is {} nights", min)); } }
-            if let Some(max) = max_los { if nights > max.into() { warnings.push(format!("maximum length of stay is {} nights", max)); } }
+            if let Some(min) = min_los {
+                if nights < min.into() {
+                    warnings.push(format!("minimum length of stay is {} nights", min));
+                }
+            }
+            if let Some(max) = max_los {
+                if nights > max.into() {
+                    warnings.push(format!("maximum length of stay is {} nights", max));
+                }
+            }
             if let Some(min_adv) = min_advance {
                 let today = chrono::Utc::now().date_naive();
                 let advance = (ci_d - today).num_days();
-                if advance < min_adv.into() { warnings.push(format!("minimum advance booking is {} days", min_adv)); }
+                if advance < min_adv.into() {
+                    warnings.push(format!("minimum advance booking is {} days", min_adv));
+                }
             }
         }
     }
     let valid = warnings.is_empty();
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:promo:validated", serde_json::json!({ "property_id": property_id, "promo_code": promo_code, "valid": valid }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:promo:validated",
+        serde_json::json!({ "property_id": property_id, "promo_code": promo_code, "valid": valid }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "valid": valid,

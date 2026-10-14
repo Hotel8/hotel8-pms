@@ -28,4 +28,3 @@ pub async fn verify_token(
 ) -> Result<AuthContext, (StatusCode, String)> {
     sentin8::auth::client::verify_bearer_token(&config.sentin8_auth_client, headers).await
 }
-

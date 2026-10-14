@@ -31,7 +31,13 @@ pub async fn get_admin_data(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     let action = action_for(&resource, false)?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new(action)).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new(action),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -215,18 +221,65 @@ pub async fn submit_admin_data(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     let action = action_for(&resource, true)?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new(action)).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new(action),
+    )
+    .await?;
     match resource.as_str() {
-        "reservations" => super::reservations::create_reservation(State(state), headers, Path(property_id), Json(req)).await,
-        "blocks" => super::blocks::create_block(State(state), headers, Path(property_id), Json(req)).await,
-        "events" => super::events::create_event(State(state), headers, Path(property_id), Json(req)).await,
-        "profiles" => super::profiles::create_profile(State(state), headers, Path(property_id), Json(req)).await,
+        "reservations" => {
+            super::reservations::create_reservation(
+                State(state),
+                headers,
+                Path(property_id),
+                Json(req),
+            )
+            .await
+        }
+        "blocks" => {
+            super::blocks::create_block(State(state), headers, Path(property_id), Json(req)).await
+        }
+        "events" => {
+            super::events::create_event(State(state), headers, Path(property_id), Json(req)).await
+        }
+        "profiles" => {
+            super::profiles::create_profile(State(state), headers, Path(property_id), Json(req))
+                .await
+        }
         // Corporate admin page (ECRP-2): credit methods + user bindings via
         // the SAME staff handlers (shared business rules, DESIGN.md §4).
-        "company_payment_methods" => super::staff_corporate::create_company_payment_method(State(state), headers, Path(corporate_pair(property_id, &req)?), Json(req)).await,
-        "company_users" => super::staff_corporate::create_company_user(State(state), headers, Path(corporate_pair(property_id, &req)?), Json(req)).await,
-        "rate_links" => super::rate_plans::link_negotiated_rate_to_company(State(state), headers, Path(rate_link_pair(property_id, &req)?), Json(req)).await,
-        _ => Err(super::err_not_found(&format!("No submit surface for admin resource: {resource}"))),
+        "company_payment_methods" => {
+            super::staff_corporate::create_company_payment_method(
+                State(state),
+                headers,
+                Path(corporate_pair(property_id, &req)?),
+                Json(req),
+            )
+            .await
+        }
+        "company_users" => {
+            super::staff_corporate::create_company_user(
+                State(state),
+                headers,
+                Path(corporate_pair(property_id, &req)?),
+                Json(req),
+            )
+            .await
+        }
+        "rate_links" => {
+            super::rate_plans::link_negotiated_rate_to_company(
+                State(state),
+                headers,
+                Path(rate_link_pair(property_id, &req)?),
+                Json(req),
+            )
+            .await
+        }
+        _ => Err(super::err_not_found(&format!(
+            "No submit surface for admin resource: {resource}"
+        ))),
     }
 }
 
@@ -280,8 +333,12 @@ fn action_for(resource: &str, write: bool) -> Result<&'static str, (StatusCode, 
         // negotiated-rate links ride the profile/rate scopes like their
         // staff-facing counterparts (DESIGN.md §4).
         ("companies", false) => Ok("hotel8:pms:profile:read"),
-        ("company_users", false) | ("company_payment_methods", false) => Ok("hotel8:pms:profile:read"),
-        ("company_users", true) | ("company_payment_methods", true) => Ok("hotel8:pms:profile:write"),
+        ("company_users", false) | ("company_payment_methods", false) => {
+            Ok("hotel8:pms:profile:read")
+        }
+        ("company_users", true) | ("company_payment_methods", true) => {
+            Ok("hotel8:pms:profile:write")
+        }
         ("negotiated_rates", false) => Ok("hotel8:pms:rate:read"),
         ("rate_links", true) => Ok("hotel8:pms:rate:write"),
         ("reports", false) | ("overview", false) => Ok("hotel8:pms:report:read"),
@@ -311,7 +368,10 @@ async fn admin_rows(
             let mut obj = serde_json::Map::new();
             for c in columns {
                 let v: Option<String> = r.try_get(*c).ok();
-                obj.insert((*c).to_string(), serde_json::Value::String(v.unwrap_or_default()));
+                obj.insert(
+                    (*c).to_string(),
+                    serde_json::Value::String(v.unwrap_or_default()),
+                );
             }
             serde_json::Value::Object(obj)
         })

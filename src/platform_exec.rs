@@ -32,10 +32,7 @@ pub async fn process_payment(
         "idempotency_key": format!("hotel8:pms:{payment_method_token}"),
     });
     let resp = client
-        .post(format!(
-            "{}/v1/charges",
-            payments_url.trim_end_matches('/')
-        ))
+        .post(format!("{}/v1/charges", payments_url.trim_end_matches('/')))
         .json(&body)
         .send()
         .await
@@ -74,7 +71,10 @@ pub async fn post_to_ledger(
         "idempotency_key": format!("hotel8:pms:{batch_id}"),
     });
     let resp = client
-        .post(format!("{}/v1/balance-transactions", ledger_url.trim_end_matches('/')))
+        .post(format!(
+            "{}/v1/balance-transactions",
+            ledger_url.trim_end_matches('/')
+        ))
         .json(&body)
         .send()
         .await
@@ -170,13 +170,12 @@ async fn list_account_by_name(
         return Err(format!("Ledger accounts list status {}", resp.status()));
     }
     let v: serde_json::Value = resp.json().await.map_err(|e| format!("decode: {e}"))?;
-    Ok(v.as_array()
-        .and_then(|rows| {
-            rows.iter()
-                .find(|r| r.get("display_name").and_then(|x| x.as_str()) == Some(display_name))
-                .and_then(|r| r.get("id").and_then(|x| x.as_str()))
-                .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        }))
+    Ok(v.as_array().and_then(|rows| {
+        rows.iter()
+            .find(|r| r.get("display_name").and_then(|x| x.as_str()) == Some(display_name))
+            .and_then(|r| r.get("id").and_then(|x| x.as_str()))
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+    }))
 }
 
 /// List an account's `available` balances filtered by currency.
@@ -218,9 +217,17 @@ async fn list_available_balances(
                 .and_then(|x| x.as_str())
                 .and_then(|s| uuid::Uuid::parse_str(s).ok())
                 .ok_or_else(|| "balance row missing account_id".to_string())?,
-            name: r.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            name: r
+                .get("name")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
             currency: currency.to_string(),
-            amount: r.get("amount").and_then(|x| x.as_str()).unwrap_or("0").to_string(),
+            amount: r
+                .get("amount")
+                .and_then(|x| x.as_str())
+                .unwrap_or("0")
+                .to_string(),
         });
     }
     Ok(out)

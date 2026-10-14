@@ -4,12 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Events handlers.
+use crate::auth;
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
 
 pub async fn create_event(
     State(state): State<AppState>,
@@ -18,7 +18,13 @@ pub async fn create_event(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -41,10 +47,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .map_err(super::err_db)?;
     let event_id: uuid::Uuid = row.get("id");
     let status: String = row.get("status");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:event:created", serde_json::json!({ "event_id": event_id, "event_code": &event_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:event:created",
+        serde_json::json!({ "event_id": event_id, "event_code": &event_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": event_id, "event_code": event_code, "status": status })))
+    Ok(Json(
+        serde_json::json!({ "id": event_id, "event_code": event_code, "status": status }),
+    ))
 }
 
 pub async fn list_events(
@@ -53,7 +68,13 @@ pub async fn list_events(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -62,19 +83,22 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let status: String = r.get("status");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"),
-            "event_code": r.get::<String, _>("event_code"),
-            "event_name": r.get::<String, _>("event_name"),
-            "event_type": r.get::<String, _>("event_type"),
-            "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-            "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-            "status": status,
-            "expected_attendees": r.get::<i32, _>("expected_attendees"),
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let status: String = r.get("status");
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"),
+                "event_code": r.get::<String, _>("event_code"),
+                "event_name": r.get::<String, _>("event_name"),
+                "event_type": r.get::<String, _>("event_type"),
+                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
+                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
+                "status": status,
+                "expected_attendees": r.get::<i32, _>("expected_attendees"),
+            })
         })
-    }).collect();
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }

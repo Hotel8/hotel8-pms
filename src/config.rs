@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! PMS configuration loaded from environment variables.
-use std::env;
 use sentin8::auth::client::{Client as AuthClient, ClientOptions};
+use std::env;
 
 #[derive(Clone)]
 pub struct H8pmsConfig {
@@ -72,8 +72,7 @@ impl H8pmsConfig {
                 .unwrap_or_else(|_| cfg.sentin8_auth_issuer()),
             sentin8_auth_jwks_url: env::var("SENTIN8_AUTH_JWKS_URL")
                 .unwrap_or_else(|_| cfg.sentin8_auth_jwks_url()),
-            sentin8_bus_url: env::var("SENTIN8_BUS_URL")
-                .unwrap_or_else(|_| cfg.sentin8_bus_url()),
+            sentin8_bus_url: env::var("SENTIN8_BUS_URL").unwrap_or_else(|_| cfg.sentin8_bus_url()),
             stream_family: env::var("HOTEL8_PMS_STREAM_FAMILY")
                 .unwrap_or_else(|_| "pms-events".into()),
             bill8_payments_url: env::var("BILL8_PAYMENTS_URL")

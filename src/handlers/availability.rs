@@ -8,19 +8,25 @@
 //! The availability/restriction math lives in pure functions below (see
 //! `hotel8/design/sentin8-hotel8-rust-test-strategy.md` §2.3) so it can be
 //! tested DB-free; the handlers only fetch rows and apply the pure filters.
+use crate::auth;
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
 
 // / available rooms for a rate/room-type over a stay.
 ///
 /// `physical − out_of_order − out_of_service = sellable`, then clamped by the
 /// sell limit: `min(sell_limit, sellable) − sold`. Mirrors the formula in
 /// `sentin8-hotel8-pms-technical-design.md` §5.5.
-pub fn available_rooms(physical: i32, out_of_order: i32, out_of_service: i32, sell_limit: i32, sold: i32) -> i32 {
+pub fn available_rooms(
+    physical: i32,
+    out_of_order: i32,
+    out_of_service: i32,
+    sell_limit: i32,
+    sold: i32,
+) -> i32 {
     let sellable = (physical - out_of_order - out_of_service).max(0);
     let limit = sell_limit.min(sellable).max(0);
     (limit - sold).max(0)
@@ -30,7 +36,13 @@ pub fn available_rooms(physical: i32, out_of_order: i32, out_of_service: i32, se
 ///
 /// `num_nights`/`advance_days` come from the handler; `min_los`/`max_los`/
 /// `min_advance` are the DB's nullable restriction columns (`None` = unset).
-pub fn restrictions_allow(num_nights: i64, advance_days: i64, min_los: Option<i32>, max_los: Option<i32>, min_advance: Option<i32>) -> bool {
+pub fn restrictions_allow(
+    num_nights: i64,
+    advance_days: i64,
+    min_los: Option<i32>,
+    max_los: Option<i32>,
+    min_advance: Option<i32>,
+) -> bool {
     if let Some(ml) = min_los {
         if num_nights < ml as i64 {
             return false;
@@ -56,14 +68,29 @@ pub async fn search_availability(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let arrival = params.get("arrivalDate").and_then(|v| v.as_str()).unwrap_or("2026-01-01");
-    let departure = params.get("departureDate").and_then(|v| v.as_str()).unwrap_or("2026-01-02");
-    let num_adults: i32 = params.get("numberOfAdults").and_then(|v| v.as_i64()).unwrap_or(2) as i32;
+    let arrival = params
+        .get("arrivalDate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2026-01-01");
+    let departure = params
+        .get("departureDate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2026-01-02");
+    let num_adults: i32 = params
+        .get("numberOfAdults")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(2) as i32;
 
     // Availability calculation: physical − OOO − OOS = sellable; sell_limit − sold = available
     // Get room types with available inventory for the date range
@@ -80,9 +107,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
 
     // Get rate plans with restrictions applied (MinLOS, MaxLOS, MinAdvance)
-    let num_nights = (chrono::NaiveDate::parse_from_str(departure, "%Y-%m-%d").unwrap_or(chrono::NaiveDate::from_ymd_opt(2026,1,2).unwrap())
-        - chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d").unwrap_or(chrono::NaiveDate::from_ymd_opt(2026,1,1).unwrap_or(chrono::NaiveDate::from_ymd_opt(2026,1,1).unwrap()))).num_days();
-    let arrival_date = chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d").unwrap_or_else(|_| chrono::Utc::now().date_naive());
+    let num_nights = (chrono::NaiveDate::parse_from_str(departure, "%Y-%m-%d")
+        .unwrap_or(chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap())
+        - chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d").unwrap_or(
+            chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+                .unwrap_or(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
+        ))
+    .num_days();
+    let arrival_date = chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d")
+        .unwrap_or_else(|_| chrono::Utc::now().date_naive());
     let advance_days = (arrival_date - chrono::Utc::now().date_naive()).num_days();
 
     let rate_plans = sqlx::query(
@@ -95,13 +128,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .bind(property_id).bind(arrival)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
 
-    let rt_items: Vec<serde_json::Value> = room_types.iter().filter_map(|rt| {
-        let available: i32 = rt.get("available");
-        if available <= 0 { return None; }
-        let max_occ: i32 = rt.get("max_occupancy");
-        if num_adults > max_occ { return None; }
-        // Get matching rate plans for this room type
-        let rp_items: Vec<serde_json::Value> = rate_plans.iter().filter_map(|rp| {
+    let rt_items: Vec<serde_json::Value> = room_types
+        .iter()
+        .filter_map(|rt| {
+            let available: i32 = rt.get("available");
+            if available <= 0 {
+                return None;
+            }
+            let max_occ: i32 = rt.get("max_occupancy");
+            if num_adults > max_occ {
+                return None;
+            }
+            // Get matching rate plans for this room type
+            let rp_items: Vec<serde_json::Value> = rate_plans.iter().filter_map(|rp| {
             let min_los: Option<i32> = rp.get("min_los");
             let max_los: Option<i32> = rp.get("max_los");
             let min_adv: Option<i32> = rp.get("min_advance_booking");
@@ -117,17 +156,20 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
                 "rate_amount": rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
             }))
         }).collect();
-        if rp_items.is_empty() { return None; }
-        Some(serde_json::json!({
-            "room_type_id": rt.get::<uuid::Uuid, _>("id"),
-            "room_type_code": rt.get::<String, _>("room_type_code"),
-            "room_type_name": rt.get::<String, _>("room_type_name"),
-            "max_occupancy": max_occ,
-            "bed_type": rt.get::<Option<String>, _>("bed_type"),
-            "available_rooms": available,
-            "rate_plans": rp_items,
-        }))
-    }).collect();
+            if rp_items.is_empty() {
+                return None;
+            }
+            Some(serde_json::json!({
+                "room_type_id": rt.get::<uuid::Uuid, _>("id"),
+                "room_type_code": rt.get::<String, _>("room_type_code"),
+                "room_type_name": rt.get::<String, _>("room_type_name"),
+                "max_occupancy": max_occ,
+                "bed_type": rt.get::<Option<String>, _>("bed_type"),
+                "available_rooms": available,
+                "rate_plans": rp_items,
+            }))
+        })
+        .collect();
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -156,22 +198,43 @@ pub async fn corporate_availability(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let company_profile_id: uuid::Uuid = req.get("company_profile_id")
+    let company_profile_id: uuid::Uuid = req
+        .get("company_profile_id")
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
         .ok_or_else(|| super::err_bad_request("company_profile_id required"))?;
-    let arrival = req.get("arrival_date").and_then(|v| v.as_str()).unwrap_or("");
-    let departure = req.get("departure_date").and_then(|v| v.as_str()).unwrap_or("");
+    let arrival = req
+        .get("arrival_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let departure = req
+        .get("departure_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if arrival.is_empty() || departure.is_empty() {
-        return Err(super::err_bad_request("arrival_date and departure_date required"));
+        return Err(super::err_bad_request(
+            "arrival_date and departure_date required",
+        ));
     }
-    let num_adults: i32 = req.get("number_of_guests").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-    let num_rooms: i32 = req.get("number_of_rooms").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
+    let num_adults: i32 = req
+        .get("number_of_guests")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1) as i32;
+    let num_rooms: i32 = req
+        .get("number_of_rooms")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1) as i32;
 
     // The company profile must exist on this property (RLS filters the env).
     let _cp = sqlx::query("SELECT id FROM pms.guest_profiles WHERE id = $1 AND property_id = $2 AND profile_type = 'COMPANY'")
@@ -211,17 +274,27 @@ pub async fn corporate_availability(
     .bind(property_id).bind(arrival).bind(company_profile_id)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
 
-    let num_nights = (chrono::NaiveDate::parse_from_str(departure, "%Y-%m-%d").unwrap_or(chrono::NaiveDate::from_ymd_opt(2026,1,2).unwrap())
-        - chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d").unwrap_or(chrono::NaiveDate::from_ymd_opt(2026,1,1).unwrap())).num_days();
-    let arrival_date = chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d").unwrap_or_else(|_| chrono::Utc::now().date_naive());
+    let num_nights = (chrono::NaiveDate::parse_from_str(departure, "%Y-%m-%d")
+        .unwrap_or(chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap())
+        - chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d")
+            .unwrap_or(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()))
+    .num_days();
+    let arrival_date = chrono::NaiveDate::parse_from_str(arrival, "%Y-%m-%d")
+        .unwrap_or_else(|_| chrono::Utc::now().date_naive());
     let advance_days = (arrival_date - chrono::Utc::now().date_naive()).num_days();
 
-    let rt_items: Vec<serde_json::Value> = room_types.iter().filter_map(|rt| {
-        let available: i32 = rt.get("available");
-        if available < num_rooms { return None; }
-        let max_occ: i32 = rt.get("max_occupancy");
-        if num_adults > max_occ { return None; }
-        let rp_items: Vec<serde_json::Value> = rate_plans.iter().filter_map(|rp| {
+    let rt_items: Vec<serde_json::Value> = room_types
+        .iter()
+        .filter_map(|rt| {
+            let available: i32 = rt.get("available");
+            if available < num_rooms {
+                return None;
+            }
+            let max_occ: i32 = rt.get("max_occupancy");
+            if num_adults > max_occ {
+                return None;
+            }
+            let rp_items: Vec<serde_json::Value> = rate_plans.iter().filter_map(|rp| {
             let min_los: Option<i32> = rp.get("min_los");
             let max_los: Option<i32> = rp.get("max_los");
             let min_adv: Option<i32> = rp.get("min_advance_booking");
@@ -237,17 +310,20 @@ pub async fn corporate_availability(
                 "negotiated": true,
             }))
         }).collect();
-        if rp_items.is_empty() { return None; }
-        Some(serde_json::json!({
-            "room_type_id": rt.get::<uuid::Uuid, _>("id"),
-            "room_type_code": rt.get::<String, _>("room_type_code"),
-            "room_type_name": rt.get::<String, _>("room_type_name"),
-            "max_occupancy": max_occ,
-            "bed_type": rt.get::<Option<String>, _>("bed_type"),
-            "available_rooms": available,
-            "rate_plans": rp_items,
-        }))
-    }).collect();
+            if rp_items.is_empty() {
+                return None;
+            }
+            Some(serde_json::json!({
+                "room_type_id": rt.get::<uuid::Uuid, _>("id"),
+                "room_type_code": rt.get::<String, _>("room_type_code"),
+                "room_type_name": rt.get::<String, _>("room_type_name"),
+                "max_occupancy": max_occ,
+                "bed_type": rt.get::<Option<String>, _>("bed_type"),
+                "available_rooms": available,
+                "rate_plans": rp_items,
+            }))
+        })
+        .collect();
 
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
@@ -267,7 +343,13 @@ pub async fn get_packages(
     Path(_property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&_a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -276,10 +358,15 @@ crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let packages: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "package_code": r.get::<String, _>("package_code"),
-        "package_name": r.get::<String, _>("package_name"),
-    })).collect();
+    let packages: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "package_code": r.get::<String, _>("package_code"),
+                "package_name": r.get::<String, _>("package_name"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": packages })))
 }
@@ -290,7 +377,13 @@ pub async fn get_guarantee_policies(
     Path(_property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&_state.config, &headers).await?;
-crate::policy::require(&_state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &_state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     Ok(Json(serde_json::json!({
         "items": [
             { "code": "CCG", "description": "Credit Card Guarantee", "is_active": true },
@@ -307,17 +400,31 @@ pub async fn search_availability_org(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let arrival = params.get("arrivalDate").and_then(|v| v.as_str()).unwrap_or("2026-01-01");
-    let departure = params.get("departureDate").and_then(|v| v.as_str()).unwrap_or("2026-01-02");
+    let arrival = params
+        .get("arrivalDate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2026-01-01");
+    let departure = params
+        .get("departureDate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2026-01-02");
     // Get all properties in the org
     let props = sqlx::query(
         "SELECT id, property_code, property_name, city FROM pms.properties ORDER BY property_code",
     )
-    .fetch_all(&mut *conn).await.map_err(super::err_db)?;
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
     let mut results: Vec<serde_json::Value> = Vec::new();
     for p in &props {
         let property_id: uuid::Uuid = p.get("id");
@@ -333,13 +440,17 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         )
         .bind(property_id).bind(arrival).bind(departure)
         .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-        let rt_items: Vec<serde_json::Value> = rts.iter().filter(|r| {
-            r.get::<Option<i32>, _>("available").unwrap_or(0) > 0
-        }).map(|r| serde_json::json!({
-            "room_type_code": r.get::<String, _>("room_type_code"),
-            "room_type_name": r.get::<String, _>("room_type_name"),
-            "available_rooms": r.get::<Option<i32>, _>("available").unwrap_or(0),
-        })).collect();
+        let rt_items: Vec<serde_json::Value> = rts
+            .iter()
+            .filter(|r| r.get::<Option<i32>, _>("available").unwrap_or(0) > 0)
+            .map(|r| {
+                serde_json::json!({
+                    "room_type_code": r.get::<String, _>("room_type_code"),
+                    "room_type_name": r.get::<String, _>("room_type_name"),
+                    "available_rooms": r.get::<Option<i32>, _>("available").unwrap_or(0),
+                })
+            })
+            .collect();
         if !rt_items.is_empty() {
             results.push(serde_json::json!({
                 "property_id": property_id,

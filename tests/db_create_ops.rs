@@ -280,7 +280,9 @@ mod create_ops {
         .bind(Option::<String>::None)
         .fetch_one(&mut *conn)
         .await;
-        if let Err(ref e) = block { println!("BLK ERR: {e}"); }
+        if let Err(ref e) = block {
+            println!("BLK ERR: {e}");
+        }
         assert!(block.is_ok(), "block INSERT with date casts must succeed");
 
         // Event insert (events.rs shape — the audit's fixed text binds).
@@ -301,7 +303,10 @@ mod create_ops {
         .bind(Option::<String>::None)
         .fetch_one(&mut *conn)
         .await;
-        assert!(event.is_ok(), "event INSERT with typed date binds must succeed");
+        assert!(
+            event.is_ok(),
+            "event INSERT with typed date binds must succeed"
+        );
 
         sqlx::query("DELETE FROM pms.events WHERE property_id = $1")
             .bind(property_id)
@@ -402,7 +407,9 @@ mod create_ops {
         .bind(ENV)
         .fetch_one(&mut *conn)
         .await;
-        if let Err(ref e) = pm { println!("PM ERR: {e}"); }
+        if let Err(ref e) = pm {
+            println!("PM ERR: {e}");
+        }
         assert!(pm.is_ok(), "company payment-method INSERT must succeed");
 
         // Traveler binding.
@@ -426,7 +433,10 @@ mod create_ops {
         .bind(ENV)
         .fetch_one(&mut *conn)
         .await;
-        assert!(cu.is_ok(), "company user binding must succeed (unique pair)");
+        assert!(
+            cu.is_ok(),
+            "company user binding must succeed (unique pair)"
+        );
 
         // Kiosk config default materialization.
         let kc = sqlx::query(
@@ -501,7 +511,10 @@ mod create_ops {
         .unwrap();
         let has_idp: bool = probe.get("has_idp");
         let admin_count: i64 = probe.get("admin_count");
-        assert!(!has_idp && admin_count == 0, "fresh no-IdP company requires provisioning");
+        assert!(
+            !has_idp && admin_count == 0,
+            "fresh no-IdP company requires provisioning"
+        );
 
         // Provision: insert the admin traveler + binding + stamp.
         let traveler_id: Uuid = sqlx::query(
@@ -570,7 +583,11 @@ mod create_ops {
         .await
         .unwrap()
         .map(|r| r.get("id"));
-        assert_eq!(linked, Some(plan_id), "rate-mix filter selects the linked plan");
+        assert_eq!(
+            linked,
+            Some(plan_id),
+            "rate-mix filter selects the linked plan"
+        );
 
         // Post-provisioning state: no longer requires provisioning.
         let probe2 = sqlx::query(
@@ -607,4 +624,3 @@ mod create_ops {
             .unwrap();
     }
 }
-

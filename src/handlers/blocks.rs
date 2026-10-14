@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Blocks (allotments) and Events handlers.
+use crate::auth;
+use crate::handlers::AppState;
+use crate::state_machine::{BlockState, PmsState};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
-use crate::state_machine::{BlockState, PmsState};
 
 // ── Blocks ──
 
@@ -21,7 +21,13 @@ pub async fn create_block(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:block:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:block:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -43,10 +49,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .await
         .map_err(super::err_db)?;
     let block_id: uuid::Uuid = row.get("id");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:block:created", serde_json::json!({ "block_id": block_id, "block_code": &block_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:block:created",
+        serde_json::json!({ "block_id": block_id, "block_code": &block_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": block_id, "block_code": block_code, "status": "PROVISIONAL" })))
+    Ok(Json(
+        serde_json::json!({ "id": block_id, "block_code": block_code, "status": "PROVISIONAL" }),
+    ))
 }
 
 /// `GET /v1/properties/{property_id}/blocks`
@@ -66,7 +81,13 @@ pub async fn list_blocks(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:block:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:block:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -75,20 +96,23 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let status: String = r.get("status");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"),
-            "block_code": r.get::<String, _>("block_code"),
-            "block_name": r.get::<String, _>("block_name"),
-            "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-            "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-            "blocked_rooms": r.get::<i32, _>("blocked_rooms"),
-            "picked_up": r.get::<i32, _>("picked_up"),
-            "released_until": r.get::<String, _>("released_until"),
-            "status": status,
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let status: String = r.get("status");
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"),
+                "block_code": r.get::<String, _>("block_code"),
+                "block_name": r.get::<String, _>("block_name"),
+                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
+                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
+                "blocked_rooms": r.get::<i32, _>("blocked_rooms"),
+                "picked_up": r.get::<i32, _>("picked_up"),
+                "released_until": r.get::<String, _>("released_until"),
+                "status": status,
+            })
         })
-    }).collect();
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
@@ -100,26 +124,40 @@ pub async fn update_block_status(
     Json(req): Json<serde_json::Value>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:block:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:block:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let new_status = req.get("status").and_then(|v| v.as_str()).unwrap_or("PROVISIONAL");
+    let new_status = req
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("PROVISIONAL");
     let next = BlockState::from_label(new_status);
     // Guard the transition server-side: read current, validate against the matrix.
-    let cur_row = sqlx::query("SELECT status::text as status FROM pms.blocks WHERE id = $1 AND property_id = $2")
-        .bind(block_id)
-        .bind(property_id)
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(|e| match e {
-            sqlx::Error::RowNotFound => super::err_not_found("Block not found"),
-            e => super::err_db(e),
-        })?;
+    let cur_row = sqlx::query(
+        "SELECT status::text as status FROM pms.blocks WHERE id = $1 AND property_id = $2",
+    )
+    .bind(block_id)
+    .bind(property_id)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => super::err_not_found("Block not found"),
+        e => super::err_db(e),
+    })?;
     let cur_label: String = cur_row.get("status");
     let cur = BlockState::from_label(&cur_label);
     if !cur.can_transition_to(next) {
-        return Err((StatusCode::CONFLICT, format!("Block is {}, cannot transition to {}", cur_label, next)));
+        return Err((
+            StatusCode::CONFLICT,
+            format!("Block is {}, cannot transition to {}", cur_label, next),
+        ));
     }
     sqlx::query("UPDATE pms.blocks SET status = $3::pms.block_status, updated_at = now() WHERE id = $1 AND property_id = $2")
         .bind(block_id)
@@ -128,8 +166,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .execute(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:block:status_changed", serde_json::json!({ "block_id": block_id, "new_status": new_status }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:block:status_changed",
+        serde_json::json!({ "block_id": block_id, "new_status": new_status }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -142,13 +187,27 @@ pub async fn get_next_statuses(
     Path((property_id, block_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:block:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:block:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let row = sqlx::query("SELECT status::text as status FROM pms.blocks WHERE id = $1 AND property_id = $2")
-        .bind(block_id).bind(property_id).fetch_one(&mut *conn).await
-        .map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Block not found"), e => super::err_db(e) })?;
+    let row = sqlx::query(
+        "SELECT status::text as status FROM pms.blocks WHERE id = $1 AND property_id = $2",
+    )
+    .bind(block_id)
+    .bind(property_id)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => super::err_not_found("Block not found"),
+        e => super::err_db(e),
+    })?;
     let current: String = row.get("status");
     let cur = BlockState::from_label(&current);
     let next: Vec<&str> = [
@@ -162,7 +221,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .map(|s| s.label())
     .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "current_status": current, "next_statuses": next })))
+    Ok(Json(
+        serde_json::json!({ "current_status": current, "next_statuses": next }),
+    ))
 }
 
 // ── Posting Master ──
@@ -174,7 +235,13 @@ pub async fn create_posting_master(
     _req: Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:block:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:block:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -186,10 +253,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .bind(block_id).bind(property_id).bind(&pm_conf)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let pm_id: uuid::Uuid = row.get("id");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:block:posting_master_created", serde_json::json!({ "block_id": block_id, "posting_master_id": pm_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:block:posting_master_created",
+        serde_json::json!({ "block_id": block_id, "posting_master_id": pm_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "posting_master_id": pm_id, "block_id": block_id, "confirmation_number": row.get::<String, _>("confirmation_number") })))
+    Ok(Json(
+        serde_json::json!({ "posting_master_id": pm_id, "block_id": block_id, "confirmation_number": row.get::<String, _>("confirmation_number") }),
+    ))
 }
 
 // ── Function Space Availability ──
@@ -201,11 +277,20 @@ pub async fn get_available_spaces(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let min_capacity: i32 = params.get("min_capacity").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let min_capacity: i32 = params
+        .get("min_capacity")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
     let date = params.get("date").and_then(|v| v.as_str());
     let rows = sqlx::query("SELECT id, space_code, space_name, capacity, setup_styles FROM pms.function_spaces WHERE property_id = $1 AND is_active = true AND capacity >= $2 ORDER BY capacity")
         .bind(property_id).bind(min_capacity).fetch_all(&mut *conn).await.map_err(super::err_db)?;
@@ -216,7 +301,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         let is_booked = if let Some(d) = date {
             sqlx::query("SELECT COUNT(*) > 0 as booked FROM pms.events e JOIN pms.event_resources er ON er.event_id = e.id WHERE e.property_id = $1 AND e.start_date <= $2 AND e.end_date >= $2 AND er.resource_type = 'SPACE' AND er.resource_name IN (SELECT space_name FROM pms.function_spaces WHERE id = $3)")
                 .bind(property_id).bind(d).bind(space_id).fetch_one(&mut *conn).await.map_err(super::err_db)?.get::<bool, _>("booked")
-        } else { false };
+        } else {
+            false
+        };
         if !is_booked {
             available.push(serde_json::json!({
                 "id": space_id, "space_code": r.get::<String, _>("space_code"),
@@ -237,7 +324,13 @@ pub async fn get_event_resources(
     Path((_property_id, event_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -259,15 +352,31 @@ pub async fn update_event_resources(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let resources = req.get("resources").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let resources = req
+        .get("resources")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     let mut added: Vec<serde_json::Value> = Vec::new();
     for r in &resources {
-        let resource_type = r.get("resource_type").and_then(|v| v.as_str()).unwrap_or("AV");
-        let resource_name = r.get("resource_name").and_then(|v| v.as_str()).unwrap_or("");
+        let resource_type = r
+            .get("resource_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("AV");
+        let resource_name = r
+            .get("resource_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         let quantity: i32 = r.get("quantity").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
         let cost = r.get("cost").and_then(|v| v.as_str()).unwrap_or("0");
         let notes = r.get("notes").and_then(|v| v.as_str());
@@ -276,10 +385,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
             .fetch_one(&mut *conn).await.map_err(super::err_db)?;
         added.push(serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "resource_type": resource_type, "resource_name": resource_name }));
     }
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:event:resources_updated", serde_json::json!({ "event_id": event_id, "count": added.len() }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:event:resources_updated",
+        serde_json::json!({ "event_id": event_id, "count": added.len() }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "event_id": event_id, "added": added })))
+    Ok(Json(
+        serde_json::json!({ "event_id": event_id, "added": added }),
+    ))
 }
 
 // ── Events ──
@@ -291,7 +409,13 @@ pub async fn create_event(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -314,10 +438,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .map_err(super::err_db)?;
     let event_id: uuid::Uuid = row.get("id");
     let status: String = row.get("status");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:event:created", serde_json::json!({ "event_id": event_id, "event_code": &event_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:event:created",
+        serde_json::json!({ "event_id": event_id, "event_code": &event_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": event_id, "event_code": event_code, "status": status })))
+    Ok(Json(
+        serde_json::json!({ "id": event_id, "event_code": event_code, "status": status }),
+    ))
 }
 
 /// `GET /v1/properties/{property_id}/events`
@@ -337,7 +470,13 @@ pub async fn list_events(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:event:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:event:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -346,19 +485,22 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let status: String = r.get("status");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"),
-            "event_code": r.get::<String, _>("event_code"),
-            "event_name": r.get::<String, _>("event_name"),
-            "event_type": r.get::<String, _>("event_type"),
-            "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-            "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-            "status": status,
-            "expected_attendees": r.get::<i32, _>("expected_attendees"),
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let status: String = r.get("status");
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"),
+                "event_code": r.get::<String, _>("event_code"),
+                "event_name": r.get::<String, _>("event_name"),
+                "event_type": r.get::<String, _>("event_type"),
+                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
+                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
+                "status": status,
+                "expected_attendees": r.get::<i32, _>("expected_attendees"),
+            })
         })
-    }).collect();
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }

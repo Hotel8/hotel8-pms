@@ -4,12 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Housekeeping handlers.
+use crate::auth;
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
 
 /// `GET /v1/properties/{property_id}/housekeeping`
 #[utoipa::path(
@@ -28,7 +28,13 @@ pub async fn list_housekeeping_tasks(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -62,19 +68,41 @@ pub async fn update_housekeeping_status(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let status = req.get("status").and_then(|v| v.as_str()).unwrap_or("CLEAN");
+    let status = req
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("CLEAN");
     let hk_expr = match status {
         "DIRTY" => "'DIRTY'",
         "CLEAN" => "'CLEAN'",
         "INSPECTED" => "'INSPECTED'",
-        _ => return Err((StatusCode::BAD_REQUEST, format!("Invalid housekeeping status: {}", status))),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("Invalid housekeeping status: {}", status),
+            ))
+        }
     };
-    let cleaned = if status == "CLEAN" { "now()" } else { "last_cleaned_at" };
-    let inspected = if status == "INSPECTED" { "now()" } else { "last_inspected_at" };
+    let cleaned = if status == "CLEAN" {
+        "now()"
+    } else {
+        "last_cleaned_at"
+    };
+    let inspected = if status == "INSPECTED" {
+        "now()"
+    } else {
+        "last_inspected_at"
+    };
     let query = format!(
         "UPDATE pms.rooms SET housekeeping_status = {}::pms.hk_status, last_cleaned_at = {}, last_inspected_at = {}, updated_at = now() WHERE property_id = $1 AND room_number = $2 RETURNING room_number, housekeeping_status",
         hk_expr, cleaned, inspected
@@ -89,10 +117,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
             e => super::err_db(e),
         })?;
     let hk: String = row.get("housekeeping_status");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:housekeeping:status_changed", serde_json::json!({ "room_number": room_number, "housekeeping_status": hk }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:housekeeping:status_changed",
+        serde_json::json!({ "room_number": room_number, "housekeeping_status": hk }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "room_number": room_number, "housekeeping_status": hk })))
+    Ok(Json(
+        serde_json::json!({ "room_number": room_number, "housekeeping_status": hk }),
+    ))
 }
 
 // ── -Housekeeping Tasks ──
@@ -104,13 +141,25 @@ pub async fn create_task(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let room_number = req.get("room_number").and_then(|v| v.as_str());
-    let task_type = req.get("task_type").and_then(|v| v.as_str()).unwrap_or("CLEAN");
-    let priority = req.get("priority").and_then(|v| v.as_str()).unwrap_or("NORMAL");
+    let task_type = req
+        .get("task_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("CLEAN");
+    let priority = req
+        .get("priority")
+        .and_then(|v| v.as_str())
+        .unwrap_or("NORMAL");
     let assigned_to = req.get("assigned_to").and_then(|v| v.as_str());
     let notes = req.get("notes").and_then(|v| v.as_str());
     let row = sqlx::query("INSERT INTO pms.hk_tasks (property_id, room_number, task_type, priority, assigned_to, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, room_number, task_type, status, priority, assigned_to, notes, created_at")
@@ -119,7 +168,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     let id: uuid::Uuid = row.get("id");
     let status: String = row.get("status");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": id, "property_id": property_id, "room_number": row.get::<Option<String>, _>("room_number"), "task_type": row.get::<String, _>("task_type"), "status": status, "priority": row.get::<String, _>("priority"), "assigned_to": row.get::<Option<String>, _>("assigned_to"), "notes": row.get::<Option<String>, _>("notes"), "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at") })))
+    Ok(Json(
+        serde_json::json!({ "id": id, "property_id": property_id, "room_number": row.get::<Option<String>, _>("room_number"), "task_type": row.get::<String, _>("task_type"), "status": status, "priority": row.get::<String, _>("priority"), "assigned_to": row.get::<Option<String>, _>("assigned_to"), "notes": row.get::<Option<String>, _>("notes"), "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at") }),
+    ))
 }
 
 pub async fn list_tasks(
@@ -129,7 +180,13 @@ pub async fn list_tasks(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -158,7 +215,13 @@ pub async fn update_task(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -168,10 +231,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .bind(task_id).bind(property_id).bind(new_status).bind(assigned_to)
         .fetch_one(&mut *conn).await.map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Task not found"), e => super::err_db(e) })?;
     let status: String = row.get("status");
-    crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:housekeeping:task_updated", serde_json::json!({ "task_id": task_id, "status": new_status }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    crate::event_emit::emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pms:housekeeping:task_updated",
+        serde_json::json!({ "task_id": task_id, "status": new_status }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "status": status, "assigned_to": row.get::<Option<String>, _>("assigned_to") })))
+    Ok(Json(
+        serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "status": status, "assigned_to": row.get::<Option<String>, _>("assigned_to") }),
+    ))
 }
 
 // ── Housekeeping Forecast ──
@@ -182,7 +254,13 @@ pub async fn get_forecast(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:housekeeping:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;

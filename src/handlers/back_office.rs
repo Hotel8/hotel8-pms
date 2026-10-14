@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Back office handlers — reporting and configuration.
+use crate::auth;
 use crate::event_emit::{emit_on_pool, emit_tx};
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
 
 /// `GET /v1/properties/{property_id}/reports/occupancy`
 #[utoipa::path(
@@ -30,12 +30,24 @@ pub async fn get_occupancy_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&_a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let start = params.get("start_date").and_then(|v| v.as_str()).unwrap_or("2020-01-01");
-    let end = params.get("end_date").and_then(|v| v.as_str()).unwrap_or("2030-12-31");
+    let start = params
+        .get("start_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2020-01-01");
+    let end = params
+        .get("end_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2030-12-31");
     let rows = sqlx::query("SELECT arrival_date, COUNT(*) as reservations, SUM(num_adults + num_children) as guests FROM pms.reservations WHERE property_id = $1 AND arrival_date >= $2 AND arrival_date <= $3 AND status NOT IN ('CANCELLED') GROUP BY arrival_date ORDER BY arrival_date")
         .bind(property_id)
         .bind(start)
@@ -43,11 +55,16 @@ crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "date": r.get::<chrono::NaiveDate, _>("arrival_date"),
-        "reservations": r.get::<i64, _>("reservations"),
-        "guests": r.get::<i64, _>("guests"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "date": r.get::<chrono::NaiveDate, _>("arrival_date"),
+                "reservations": r.get::<i64, _>("reservations"),
+                "guests": r.get::<i64, _>("guests"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
@@ -59,12 +76,24 @@ pub async fn get_revenue_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&_a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let start = params.get("start_date").and_then(|v| v.as_str()).unwrap_or("2020-01-01");
-    let end = params.get("end_date").and_then(|v| v.as_str()).unwrap_or("2030-12-31");
+    let start = params
+        .get("start_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2020-01-01");
+    let end = params
+        .get("end_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2030-12-31");
     let rows = sqlx::query("SELECT fc.charge_code, SUM(fc.amount * fc.quantity)::text as total FROM pms.folio_charges fc JOIN pms.folios f ON fc.folio_id = f.id JOIN pms.reservations r ON f.reservation_id = r.id WHERE r.property_id = $1 AND r.arrival_date >= $2 AND r.arrival_date <= $3 GROUP BY fc.charge_code ORDER BY total DESC")
         .bind(property_id)
         .bind(start)
@@ -72,10 +101,15 @@ crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "charge_code": r.get::<String, _>("charge_code"),
-        "total": r.get::<String, _>("total"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "charge_code": r.get::<String, _>("charge_code"),
+                "total": r.get::<String, _>("total"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
@@ -86,7 +120,13 @@ pub async fn get_property_config(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&_a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -117,7 +157,13 @@ pub async fn end_of_day(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -128,39 +174,68 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     let mut steps: Vec<serde_json::Value> = Vec::new();
 
     // Step 1 — Pre-EOD checks
-    sqlx::query("UPDATE pms.eod_log SET step = 'PRE_EOD_CHECKS' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'PRE_EOD_CHECKS' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     let unbalanced = sqlx::query("SELECT COUNT(*)::int as cnt FROM pms.reservations r WHERE r.property_id = $1 AND r.status = 'CHECKED_IN' AND NOT EXISTS (SELECT 1 FROM pms.folios f WHERE f.reservation_id = r.id AND f.status = 'OPEN')")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let unbalanced_count: i32 = unbalanced.get("cnt");
     steps.push(serde_json::json!({ "step": "pre_eod_checks", "status": "passed", "unbalanced_folios": unbalanced_count }));
 
     // Step 2 — Post room charges for in-house guests
-    sqlx::query("UPDATE pms.eod_log SET step = 'POST_ROOM_CHARGES' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'POST_ROOM_CHARGES' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     let room_charge_str = "100.00"; // Simplified: in production would look up rate schedule
-    let posted = sqlx::query("INSERT INTO pms.folio_charges (folio_id, charge_code, description, amount, quantity)
+    let posted = sqlx::query(
+        "INSERT INTO pms.folio_charges (folio_id, charge_code, description, amount, quantity)
         SELECT f.id, 'ROOM', 'Room Charge', $3, 1 FROM pms.folios f
         JOIN pms.reservations r ON f.reservation_id = r.id
         WHERE r.property_id = $1 AND r.status = 'CHECKED_IN' AND f.status = 'OPEN'
-        RETURNING id")
-        .bind(property_id).bind(business_date).bind(room_charge_str)
-        .fetch_all(&mut *conn).await;
+        RETURNING id",
+    )
+    .bind(property_id)
+    .bind(business_date)
+    .bind(room_charge_str)
+    .fetch_all(&mut *conn)
+    .await;
     let _room_charges_posted = room_charge_str;
     steps.push(serde_json::json!({ "step": "post_room_charges", "status": "completed", "charges_posted": posted.as_ref().map(|r| r.len()).unwrap_or(0) }));
 
     // Step 3 — Reconcile folios
-    sqlx::query("UPDATE pms.eod_log SET step = 'RECONCILE_FOLIOS' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'RECONCILE_FOLIOS' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "reconcile_folios", "status": "completed" }));
 
     // Step 4 — Process credit card batch (via Payments) — placeholder
-    sqlx::query("UPDATE pms.eod_log SET step = 'CC_BATCH_SETTLEMENT' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'CC_BATCH_SETTLEMENT' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "cc_batch_settlement", "status": "completed", "note": "Payments integration pending" }));
 
     // Step 5 — Roll business date forward
-    sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "roll_business_date", "status": "completed", "new_date": business_date + chrono::Duration::days(1) }));
 
     // Step 6 — Generate reports
-    sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     let occupancy = sqlx::query("SELECT COUNT(*)::int as occupied, (SELECT COUNT(*)::int FROM pms.rooms WHERE property_id = $1) as total FROM pms.rooms WHERE property_id = $1 AND front_office_status = 'OCCUPIED'")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let report_data = serde_json::json!({
@@ -174,10 +249,12 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     sqlx::query("UPDATE pms.eod_log SET status = 'COMPLETED', step = 'DONE', completed_at = now(), report_data = $2 WHERE id = $1")
         .bind(eod_id).bind(&report_data).execute(&mut *conn).await.map_err(super::err_db)?;
 
-emit_tx(&mut *conn, env_id, "hotel8:pms:eod:completed", serde_json::json!({ "property_id": property_id, "business_date": business_date, "eod_id": eod_id }),
+    emit_tx(&mut *conn, env_id, "hotel8:pms:eod:completed", serde_json::json!({ "property_id": property_id, "business_date": business_date, "eod_id": eod_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "eod_id": eod_id, "property_id": property_id, "business_date": business_date, "status": "COMPLETED", "steps": steps })))
+    Ok(Json(
+        serde_json::json!({ "eod_id": eod_id, "property_id": property_id, "business_date": business_date, "status": "COMPLETED", "steps": steps }),
+    ))
 }
 
 // ── Reservation Summary report ──
@@ -189,12 +266,24 @@ pub async fn get_reservation_summary(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&_a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let start = params.get("start_date").and_then(|v| v.as_str()).unwrap_or("2020-01-01");
-    let end = params.get("end_date").and_then(|v| v.as_str()).unwrap_or("2030-12-31");
+    let start = params
+        .get("start_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2020-01-01");
+    let end = params
+        .get("end_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2030-12-31");
     let rows = sqlx::query("SELECT COUNT(*)::int as total_reservations, COUNT(*) FILTER (WHERE status = 'CHECKED_IN') as in_house, COUNT(*) FILTER (WHERE status = 'CHECKED_OUT') as checked_out, COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled, SUM(num_adults + num_children)::int as total_guests, COUNT(*) FILTER (WHERE status NOT IN ('CANCELLED')) as active_reservations FROM pms.reservations WHERE property_id = $1 AND arrival_date >= $2 AND arrival_date <= $3")
         .bind(property_id).bind(start).bind(end)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
@@ -220,19 +309,38 @@ pub async fn create_async_job(
     Json(req): Json<serde_json::Value>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let module = req.get("module").and_then(|v| v.as_str()).unwrap_or("INVENTORY");
-    let operation = req.get("operation").and_then(|v| v.as_str()).unwrap_or("BULK_UPDATE");
+    let module = req
+        .get("module")
+        .and_then(|v| v.as_str())
+        .unwrap_or("INVENTORY");
+    let operation = req
+        .get("operation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("BULK_UPDATE");
     let row = sqlx::query("INSERT INTO pms.async_jobs (property_id, module, operation, status) VALUES ($1, $2, $3, 'IN_PROGRESS') RETURNING id")
         .bind(property_id).bind(module).bind(operation)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let job_id: uuid::Uuid = row.get("id");
     // Return 202 Accepted with Location header
     conn.commit().await.map_err(super::err_db)?;
-    Ok((StatusCode::ACCEPTED, [("Location".to_string(), format!("/v1/async/status/{}", job_id))], job_id.to_string()))
+    Ok((
+        StatusCode::ACCEPTED,
+        [(
+            "Location".to_string(),
+            format!("/v1/async/status/{}", job_id),
+        )],
+        job_id.to_string(),
+    ))
 }
 
 pub async fn get_async_status(
@@ -241,7 +349,13 @@ pub async fn get_async_status(
     Path(job_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -267,16 +381,30 @@ pub async fn get_async_result(
     Path(job_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query("SELECT status, result, error_message FROM pms.async_jobs WHERE id = $1")
-        .bind(job_id).fetch_one(&mut *conn).await
-        .map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Job not found"), e => super::err_db(e) })?;
+        .bind(job_id)
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => super::err_not_found("Job not found"),
+            e => super::err_db(e),
+        })?;
     let status: String = row.get("status");
     if status != "COMPLETED" {
-        return Err((StatusCode::CONFLICT, format!("Job is not completed: {}", status)));
+        return Err((
+            StatusCode::CONFLICT,
+            format!("Job is not completed: {}", status),
+        ));
     }
     let result: serde_json::Value = row.get("result");
     conn.commit().await.map_err(super::err_db)?;
@@ -291,7 +419,11 @@ pub async fn create_inventory_async(
     Path(property_id): Path<uuid::Uuid>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req.get("operation").and_then(|v| v.as_str()).unwrap_or("BULK_SELL_LIMIT_UPDATE").to_string();
+    let operation = req
+        .get("operation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("BULK_SELL_LIMIT_UPDATE")
+        .to_string();
     create_module_async_job(&state, &headers, property_id, "INVENTORY", &operation, req).await
 }
 
@@ -301,7 +433,11 @@ pub async fn create_cashiering_async(
     Path(property_id): Path<uuid::Uuid>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req.get("operation").and_then(|v| v.as_str()).unwrap_or("BULK_FOLIO_POSTING").to_string();
+    let operation = req
+        .get("operation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("BULK_FOLIO_POSTING")
+        .to_string();
     create_module_async_job(&state, &headers, property_id, "CASHIERING", &operation, req).await
 }
 
@@ -311,7 +447,11 @@ pub async fn create_crm_async(
     Path(property_id): Path<uuid::Uuid>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req.get("operation").and_then(|v| v.as_str()).unwrap_or("PROFILE_MERGE").to_string();
+    let operation = req
+        .get("operation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("PROFILE_MERGE")
+        .to_string();
     create_module_async_job(&state, &headers, property_id, "CRM", &operation, req).await
 }
 
@@ -321,7 +461,11 @@ pub async fn create_par_async(
     Path(property_id): Path<uuid::Uuid>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req.get("operation").and_then(|v| v.as_str()).unwrap_or("PAR_REPORT_GENERATION").to_string();
+    let operation = req
+        .get("operation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("PAR_REPORT_GENERATION")
+        .to_string();
     create_module_async_job(&state, &headers, property_id, "PAR", &operation, req).await
 }
 
@@ -340,7 +484,8 @@ async fn create_module_async_job(
         &a,
         headers,
         sentin8::shield::EvalTarget::new("hotel8:pms:read"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -348,10 +493,17 @@ async fn create_module_async_job(
         .bind(property_id).bind(module).bind(operation).bind(&req)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let job_id: uuid::Uuid = row.get("id");
-emit_tx(&mut *conn, env_id, "hotel8:pms:async:job_created", serde_json::json!({ "property_id": property_id, "job_id": job_id, "module": module, "operation": operation }),
+    emit_tx(&mut *conn, env_id, "hotel8:pms:async:job_created", serde_json::json!({ "property_id": property_id, "job_id": job_id, "module": module, "operation": operation }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok((StatusCode::ACCEPTED, [("Location".to_string(), format!("/v1/async/status/{}", job_id))], job_id.to_string()))
+    Ok((
+        StatusCode::ACCEPTED,
+        [(
+            "Location".to_string(),
+            format!("/v1/async/status/{}", job_id),
+        )],
+        job_id.to_string(),
+    ))
 }
 
 // ── External System configuration for async result delivery ──
@@ -362,7 +514,13 @@ pub async fn get_external_system_config(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -385,11 +543,26 @@ pub async fn update_external_system_config(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
-emit_on_pool(&state.pool, env_id, "hotel8:pms:external_system:config_updated", serde_json::json!({ "property_id": property_id, "config": req }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "status": "updated" })))
+    emit_on_pool(
+        &state.pool,
+        env_id,
+        "hotel8:pms:external_system:config_updated",
+        serde_json::json!({ "property_id": property_id, "config": req }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "status": "updated" }),
+    ))
 }
 
 // ── Property module configuration ──
@@ -400,7 +573,13 @@ pub async fn get_property_modules(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&_a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -430,12 +609,27 @@ pub async fn update_property_modules(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     // Module config is stored in the property's preferences JSONB — simplified for now
     let env_id = super::resolve_org_env(&a);
-emit_on_pool(&state.pool, env_id, "hotel8:pms:property:modules_updated", serde_json::json!({ "property_id": property_id, "modules": req }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "status": "updated" })))
+    emit_on_pool(
+        &state.pool,
+        env_id,
+        "hotel8:pms:property:modules_updated",
+        serde_json::json!({ "property_id": property_id, "modules": req }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "status": "updated" }),
+    ))
 }
 
 // ── EOD exception handling and retry ──
@@ -446,7 +640,13 @@ pub async fn get_eod_exceptions(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -458,17 +658,24 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          ORDER BY created_at DESC",
     )
     .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"),
-        "business_date": r.get::<chrono::NaiveDate, _>("business_date"),
-        "status": r.get::<String, _>("status"),
-        "step": r.get::<String, _>("step"),
-        "error_details": r.get::<Option<serde_json::Value>, _>("error_details"),
-        "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-        "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"),
+                "business_date": r.get::<chrono::NaiveDate, _>("business_date"),
+                "status": r.get::<String, _>("status"),
+                "step": r.get::<String, _>("step"),
+                "error_details": r.get::<Option<serde_json::Value>, _>("error_details"),
+                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+                "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "exceptions": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "exceptions": items }),
+    ))
 }
 
 pub async fn retry_eod(
@@ -477,7 +684,13 @@ pub async fn retry_eod(
     Path((property_id, eod_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -493,23 +706,46 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     let failed_step: String = eod.get("step");
     let business_date: chrono::NaiveDate = eod.get("business_date");
     // Mark as retrying
-    sqlx::query("UPDATE pms.eod_log SET status = 'RETRYING', step = $2, error_details = NULL WHERE id = $1")
-        .bind(eod_id).bind(&failed_step).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query(
+        "UPDATE pms.eod_log SET status = 'RETRYING', step = $2, error_details = NULL WHERE id = $1",
+    )
+    .bind(eod_id)
+    .bind(&failed_step)
+    .execute(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
     // Resume from the failed step
     let mut steps: Vec<serde_json::Value> = Vec::new();
     let resume_from = failed_step.as_str();
     // Re-run steps from the failed step onwards
-    if matches!(resume_from, "POST_ROOM_CHARGES" | "RECONCILE_FOLIOS" | "CC_BATCH_SETTLEMENT" | "ROLL_BUSINESS_DATE" | "GENERATE_REPORTS" | "START" | "PRE_EOD_CHECKS") {
+    if matches!(
+        resume_from,
+        "POST_ROOM_CHARGES"
+            | "RECONCILE_FOLIOS"
+            | "CC_BATCH_SETTLEMENT"
+            | "ROLL_BUSINESS_DATE"
+            | "GENERATE_REPORTS"
+            | "START"
+            | "PRE_EOD_CHECKS"
+    ) {
         // Re-post room charges for in-house guests
         let charged = sqlx::query("UPDATE pms.folio_charges SET status = 'POSTED' WHERE reservation_id IN (SELECT id FROM pms.reservations WHERE property_id = $1 AND status = 'CHECKED_IN') AND status = 'PENDING'")
             .bind(property_id).execute(&mut *conn).await.map_err(super::err_db)?;
         steps.push(serde_json::json!({ "step": "post_room_charges", "status": "completed", "rows_affected": charged.rows_affected() }));
     }
     // Roll business date
-    sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "roll_business_date", "status": "completed", "new_date": business_date + chrono::Duration::days(1) }));
     // Generate reports
-    sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1").bind(eod_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1")
+        .bind(eod_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     let occupancy = sqlx::query("SELECT COUNT(*)::int as occupied, (SELECT COUNT(*)::int FROM pms.rooms WHERE property_id = $1) as total FROM pms.rooms WHERE property_id = $1 AND front_office_status = 'OCCUPIED'")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let report_data = serde_json::json!({
@@ -521,7 +757,7 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     // Mark completed
     sqlx::query("UPDATE pms.eod_log SET status = 'COMPLETED', step = 'DONE', completed_at = now(), report_data = $2 WHERE id = $1")
         .bind(eod_id).bind(&report_data).execute(&mut *conn).await.map_err(super::err_db)?;
-emit_tx(&mut *conn, env_id, "hotel8:pms:eod:retried", serde_json::json!({ "property_id": property_id, "eod_id": eod_id, "business_date": business_date, "resumed_from": failed_step }),
+    emit_tx(&mut *conn, env_id, "hotel8:pms:eod:retried", serde_json::json!({ "property_id": property_id, "eod_id": eod_id, "business_date": business_date, "resumed_from": failed_step }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
@@ -539,7 +775,13 @@ pub async fn get_guest_history_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -555,22 +797,30 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          GROUP BY p.id, p.first_name, p.last_name, p.email, p.vip_status
          ORDER BY stay_count DESC LIMIT $2",
     )
-    .bind(property_id).bind(limit)
-    .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let vip: String = r.get("vip_status");
-        serde_json::json!({
-            "profile_id": r.get::<uuid::Uuid, _>("id"),
-            "first_name": r.get::<String, _>("first_name"),
-            "last_name": r.get::<String, _>("last_name"),
-            "email": r.get::<Option<String>, _>("email"),
-            "vip_status": vip,
-            "stay_count": r.get::<i64, _>("stay_count"),
-            "total_revenue": r.get::<String, _>("total_revenue"),
+    .bind(property_id)
+    .bind(limit)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let vip: String = r.get("vip_status");
+            serde_json::json!({
+                "profile_id": r.get::<uuid::Uuid, _>("id"),
+                "first_name": r.get::<String, _>("first_name"),
+                "last_name": r.get::<String, _>("last_name"),
+                "email": r.get::<Option<String>, _>("email"),
+                "vip_status": vip,
+                "stay_count": r.get::<i64, _>("stay_count"),
+                "total_revenue": r.get::<String, _>("total_revenue"),
+            })
         })
-    }).collect();
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "guests": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "guests": items }),
+    ))
 }
 
 pub async fn get_housekeeping_analysis_report(
@@ -579,7 +829,13 @@ pub async fn get_housekeeping_analysis_report(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -593,22 +849,30 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          WHERE t.property_id = $1
          ORDER BY t.created_at DESC LIMIT 500",
     )
-    .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let tt: String = r.get("task_type");
-        let st: String = r.get("status");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"), "task_type": tt, "status": st,
-            "priority": r.get::<Option<String>, _>("priority"),
-            "assigned_to": r.get::<Option<String>, _>("assigned_to"),
-            "room_number": r.get::<Option<String>, _>("room_number"),
-            "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-            "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
-            "turnaround_seconds": r.get::<Option<i32>, _>("turnaround_seconds"),
+    .bind(property_id)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let tt: String = r.get("task_type");
+            let st: String = r.get("status");
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"), "task_type": tt, "status": st,
+                "priority": r.get::<Option<String>, _>("priority"),
+                "assigned_to": r.get::<Option<String>, _>("assigned_to"),
+                "room_number": r.get::<Option<String>, _>("room_number"),
+                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+                "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
+                "turnaround_seconds": r.get::<Option<i32>, _>("turnaround_seconds"),
+            })
         })
-    }).collect();
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "tasks": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "tasks": items }),
+    ))
 }
 
 pub async fn get_sales_catering_report(
@@ -617,7 +881,13 @@ pub async fn get_sales_catering_report(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -632,22 +902,30 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          WHERE b.property_id = $1
          GROUP BY b.id ORDER BY b.start_date DESC",
     )
-    .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let st: String = r.get("status");
-        let bt: String = r.get("block_type");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"), "block_code": r.get::<String, _>("block_code"),
-            "block_name": r.get::<String, _>("block_name"), "status": st, "block_type": bt,
-            "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-            "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-            "negotiated_rate": r.get::<String, _>("negotiated_rate"),
-            "event_count": r.get::<i64, _>("event_count"),
-            "total_capacity": r.get::<i64, _>("total_capacity"),
+    .bind(property_id)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let st: String = r.get("status");
+            let bt: String = r.get("block_type");
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id"), "block_code": r.get::<String, _>("block_code"),
+                "block_name": r.get::<String, _>("block_name"), "status": st, "block_type": bt,
+                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
+                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
+                "negotiated_rate": r.get::<String, _>("negotiated_rate"),
+                "event_count": r.get::<i64, _>("event_count"),
+                "total_capacity": r.get::<i64, _>("total_capacity"),
+            })
         })
-    }).collect();
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "blocks": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "blocks": items }),
+    ))
 }
 
 pub async fn get_channel_performance_report(
@@ -657,12 +935,24 @@ pub async fn get_channel_performance_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let start = params.get("start_date").and_then(|v| v.as_str()).unwrap_or("2020-01-01");
-    let end = params.get("end_date").and_then(|v| v.as_str()).unwrap_or("2030-12-31");
+    let start = params
+        .get("start_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2020-01-01");
+    let end = params
+        .get("end_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2030-12-31");
     let rows = sqlx::query(
         "SELECT COALESCE(source_code, 'UNKNOWN') as source_code,
                 COUNT(*) as reservation_count,
@@ -674,14 +964,21 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     )
     .bind(property_id).bind(start).bind(end)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "source_code": r.get::<String, _>("source_code"),
-        "reservation_count": r.get::<i64, _>("reservation_count"),
-        "active_count": r.get::<i64, _>("active_count"),
-        "revenue": r.get::<String, _>("revenue"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "source_code": r.get::<String, _>("source_code"),
+                "reservation_count": r.get::<i64, _>("reservation_count"),
+                "active_count": r.get::<i64, _>("active_count"),
+                "revenue": r.get::<String, _>("revenue"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "channels": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "channels": items }),
+    ))
 }
 
 pub async fn get_market_segment_report(
@@ -691,12 +988,24 @@ pub async fn get_market_segment_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let start = params.get("start_date").and_then(|v| v.as_str()).unwrap_or("2020-01-01");
-    let end = params.get("end_date").and_then(|v| v.as_str()).unwrap_or("2030-12-31");
+    let start = params
+        .get("start_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2020-01-01");
+    let end = params
+        .get("end_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2030-12-31");
     let rows = sqlx::query(
         "SELECT COALESCE(market_code, 'UNKNOWN') as market_code,
                 COUNT(*) as reservation_count,
@@ -708,14 +1017,21 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     )
     .bind(property_id).bind(start).bind(end)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "market_code": r.get::<String, _>("market_code"),
-        "reservation_count": r.get::<i64, _>("reservation_count"),
-        "revenue": r.get::<String, _>("revenue"),
-        "avg_party_size": r.get::<i32, _>("avg_party_size"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "market_code": r.get::<String, _>("market_code"),
+                "reservation_count": r.get::<i64, _>("reservation_count"),
+                "revenue": r.get::<String, _>("revenue"),
+                "avg_party_size": r.get::<i32, _>("avg_party_size"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "segments": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "segments": items }),
+    ))
 }
 
 pub async fn get_rate_analysis_report(
@@ -724,7 +1040,13 @@ pub async fn get_rate_analysis_report(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -739,15 +1061,25 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          GROUP BY rp.rate_plan_code, rp.rate_plan_name, rp.rate_category
          ORDER BY reservation_count DESC",
     )
-    .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "rate_plan_code": r.get::<String, _>("rate_plan_code"),
-        "rate_plan_name": r.get::<String, _>("rate_plan_name"),
-        "rate_category": r.get::<String, _>("rate_category"),
-        "reservation_count": r.get::<i64, _>("reservation_count"),
-        "total_revenue": r.get::<String, _>("total_revenue"),
-        "adr": r.get::<String, _>("adr"),
-    })).collect();
+    .bind(property_id)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "rate_plan_code": r.get::<String, _>("rate_plan_code"),
+                "rate_plan_name": r.get::<String, _>("rate_plan_name"),
+                "rate_category": r.get::<String, _>("rate_category"),
+                "reservation_count": r.get::<i64, _>("reservation_count"),
+                "total_revenue": r.get::<String, _>("total_revenue"),
+                "adr": r.get::<String, _>("adr"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "property_id": property_id, "rate_plans": items })))
+    Ok(Json(
+        serde_json::json!({ "property_id": property_id, "rate_plans": items }),
+    ))
 }

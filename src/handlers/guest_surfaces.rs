@@ -179,7 +179,9 @@ pub async fn issue_digital_key(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({ "items": issued.iter().map(|i| json!({"id": i})).collect::<Vec<_>>() })))
+    Ok(Json(
+        json!({ "items": issued.iter().map(|i| json!({"id": i})).collect::<Vec<_>>() }),
+    ))
 }
 
 /// Activate a digital key.
@@ -224,7 +226,11 @@ async fn transition_key(
         "ACTIVE" => "status = 'INACTIVE'",
         _ => "status = 'ACTIVE'",
     };
-    let stamp = if target == "ACTIVE" { "activated_at" } else { "revoked_at" };
+    let stamp = if target == "ACTIVE" {
+        "activated_at"
+    } else {
+        "revoked_at"
+    };
     let row = sqlx::query(&format!(
         "UPDATE pms.digital_keys SET status = $3, {stamp} = now(), updated_at = now()
           WHERE id = $1 AND property_id = $2 AND {legal_check}
@@ -387,7 +393,13 @@ pub async fn get_boarding_pass(
     Path((property_id, res_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:frontdesk:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:frontdesk:read"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
@@ -449,7 +461,13 @@ pub async fn submit_feedback(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
@@ -509,7 +527,13 @@ pub async fn get_feedback(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:read"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
@@ -551,7 +575,13 @@ pub async fn list_payment_methods(
     Path(property_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:read"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
@@ -567,7 +597,9 @@ pub async fn list_payment_methods(
     .await
     .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({ "items": rows.iter().map(payment_method_json).collect::<Vec<_>>() })))
+    Ok(Json(
+        json!({ "items": rows.iter().map(payment_method_json).collect::<Vec<_>>() }),
+    ))
 }
 
 /// `POST /v1/properties/{p}/payment-methods` — save a tokenized method
@@ -579,7 +611,13 @@ pub async fn create_payment_method(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:write"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
@@ -587,13 +625,21 @@ pub async fn create_payment_method(
         .get("payment_method_id")
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "payment_method_id required (bill8 token reference)".into()))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "payment_method_id required (bill8 token reference)".into(),
+            )
+        })?;
     let label = req
         .get("label")
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "label required".into()))?;
-    let is_default = req.get("is_default").and_then(|v| v.as_bool()).unwrap_or(false);
+    let is_default = req
+        .get("is_default")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let row = sqlx::query(
         "INSERT INTO pms.guest_payment_methods (env_id, property_id, sentin8_auth_user_id, label, payment_method_id, is_default)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -629,7 +675,13 @@ pub async fn delete_payment_method(
     Path((property_id, method_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:write"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
@@ -676,7 +728,13 @@ pub async fn link_reservation_guest(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:write"),
+    )
+    .await?;
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;

@@ -6,11 +6,15 @@
 //! Hotel8:PMS Admin UI handlers — RFW definitions.
 //! Served from `GET /v1/admin/ui/{page}`, rendered by Sentin8:Dash at runtime.
 
-use axum::{extract::{Path, State}, http::HeaderMap, Json};
+use crate::handlers::AppState;
+use axum::{
+    extract::{Path, State},
+    http::HeaderMap,
+    Json,
+};
+use sentin8::rfw::page::*;
 use sentin8::rfw::response::AdminUiResponse;
 use sentin8::rfw::widget::*;
-use sentin8::rfw::page::*;
-use crate::handlers::AppState;
 
 pub async fn get_admin_ui(
     State(state): State<AppState>,
@@ -18,18 +22,79 @@ pub async fn get_admin_ui(
     Path(page): Path<String>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let def = match page.as_str() {
-"overview" => AdminPage::new("PMS Overview").widget(card("Summary","Reservations, front desk, housekeeping, rates, blocks, events, reports.")).build(),
-        "reservations" => AdminPage::new("Reservations").widget(table(vec![col("id","Reservation ID"), cols("guest_name","Guest"), cols("status","Status"), cols("check_in","Check In")], "/reservations")).build(),
-        "frontdesk" => AdminPage::new("Front Desk").widget(card("Front Desk","Check-in, check-out, room assignments.")).build(),
-        "housekeeping" => AdminPage::new("Housekeeping").widget(table(vec![col("room_number","Room"), cols("status","Status"), cols("assigned_to","Assigned")], "/housekeeping")).build(),
-        "rates" => AdminPage::new("Rates").widget(table(vec![col("id","Rate ID"), cols("name","Rate Plan"), cols("amount","Amount")], "/rates")).build(),
-        "blocks" => AdminPage::new("Blocks").widget(table(vec![col("id","Block ID"), cols("name","Block Name"), cols("rooms","Rooms")], "/blocks")).build(),
-        "events" => AdminPage::new("Events").widget(table(vec![col("id","Event ID"), cols("name","Event"), cols("date","Date")], "/events")).build(),
-        "reports" => AdminPage::new("Reports").widget(card("Reports","Occupancy, revenue, ADR, RevPAR reports.")).build(),
+        "overview" => AdminPage::new("PMS Overview")
+            .widget(card(
+                "Summary",
+                "Reservations, front desk, housekeeping, rates, blocks, events, reports.",
+            ))
+            .build(),
+        "reservations" => AdminPage::new("Reservations")
+            .widget(table(
+                vec![
+                    col("id", "Reservation ID"),
+                    cols("guest_name", "Guest"),
+                    cols("status", "Status"),
+                    cols("check_in", "Check In"),
+                ],
+                "/reservations",
+            ))
+            .build(),
+        "frontdesk" => AdminPage::new("Front Desk")
+            .widget(card("Front Desk", "Check-in, check-out, room assignments."))
+            .build(),
+        "housekeeping" => AdminPage::new("Housekeeping")
+            .widget(table(
+                vec![
+                    col("room_number", "Room"),
+                    cols("status", "Status"),
+                    cols("assigned_to", "Assigned"),
+                ],
+                "/housekeeping",
+            ))
+            .build(),
+        "rates" => AdminPage::new("Rates")
+            .widget(table(
+                vec![
+                    col("id", "Rate ID"),
+                    cols("name", "Rate Plan"),
+                    cols("amount", "Amount"),
+                ],
+                "/rates",
+            ))
+            .build(),
+        "blocks" => AdminPage::new("Blocks")
+            .widget(table(
+                vec![
+                    col("id", "Block ID"),
+                    cols("name", "Block Name"),
+                    cols("rooms", "Rooms"),
+                ],
+                "/blocks",
+            ))
+            .build(),
+        "events" => AdminPage::new("Events")
+            .widget(table(
+                vec![
+                    col("id", "Event ID"),
+                    cols("name", "Event"),
+                    cols("date", "Date"),
+                ],
+                "/events",
+            ))
+            .build(),
+        "reports" => AdminPage::new("Reports")
+            .widget(card("Reports", "Occupancy, revenue, ADR, RevPAR reports."))
+            .build(),
         "settings" => AdminPage::new("PMS Settings")
-            .widget(card("Settings","Hotel8:PMS configuration."))
+            .widget(card("Settings", "Hotel8:PMS configuration."))
             .widget(RemoteWidget::Button(WidgetButton {
                 label: "Kiosk terminal config".into(),
                 button_type: ButtonType::Link,
@@ -106,7 +171,10 @@ pub async fn get_admin_ui(
                         options: None,
                         validation: None,
                         width: None,
-                        help_text: Some("Freezes the terminal at the attract loop (staff unlock at the device)".into()),
+                        help_text: Some(
+                            "Freezes the terminal at the attract loop (staff unlock at the device)"
+                                .into(),
+                        ),
                         visible_if: None,
                     },
                     WidgetFormField {
@@ -182,10 +250,22 @@ pub async fn get_admin_ui(
                         placeholder: None,
                         default_value: Some(serde_json::json!("POSTPAY")),
                         options: Some(vec![
-                            FormFieldOption { value: "PENDING".into(), label: "Pending".into() },
-                            FormFieldOption { value: "POSTPAY".into(), label: "Post-pay".into() },
-                            FormFieldOption { value: "BILL_TO_COMPANY".into(), label: "Bill to company".into() },
-                            FormFieldOption { value: "REJECTED".into(), label: "Rejected".into() },
+                            FormFieldOption {
+                                value: "PENDING".into(),
+                                label: "Pending".into(),
+                            },
+                            FormFieldOption {
+                                value: "POSTPAY".into(),
+                                label: "Post-pay".into(),
+                            },
+                            FormFieldOption {
+                                value: "BILL_TO_COMPANY".into(),
+                                label: "Bill to company".into(),
+                            },
+                            FormFieldOption {
+                                value: "REJECTED".into(),
+                                label: "Rejected".into(),
+                            },
                         ]),
                         validation: None,
                         width: None,
@@ -260,9 +340,18 @@ pub async fn get_admin_ui(
                         placeholder: None,
                         default_value: Some(serde_json::json!("TRAVELER")),
                         options: Some(vec![
-                            FormFieldOption { value: "ADMIN".into(), label: "Admin".into() },
-                            FormFieldOption { value: "BOOKING_AGENT".into(), label: "Booking agent".into() },
-                            FormFieldOption { value: "TRAVELER".into(), label: "Traveler".into() },
+                            FormFieldOption {
+                                value: "ADMIN".into(),
+                                label: "Admin".into(),
+                            },
+                            FormFieldOption {
+                                value: "BOOKING_AGENT".into(),
+                                label: "Booking agent".into(),
+                            },
+                            FormFieldOption {
+                                value: "TRAVELER".into(),
+                                label: "Traveler".into(),
+                            },
                         ]),
                         validation: None,
                         width: None,
@@ -291,25 +380,76 @@ pub async fn get_admin_ui(
             .build(),
         // ── Policy Studio — shared page
         // constructors; the guard guarantees `Some` (§3.7 dispatch).
-        p if sentin8::rfw::policy_page("hotel8:pms", p).is_some() => sentin8::rfw
-            ::policy_page("hotel8:pms", p)
-            .expect("policy_page checked in guard")
-            .build(),
-        _ => return Err((axum::http::StatusCode::NOT_FOUND, format!("Unknown admin UI page: {page}"))),
+        p if sentin8::rfw::policy_page("hotel8:pms", p).is_some() => {
+            sentin8::rfw::policy_page("hotel8:pms", p)
+                .expect("policy_page checked in guard")
+                .build()
+        }
+        _ => {
+            return Err((
+                axum::http::StatusCode::NOT_FOUND,
+                format!("Unknown admin UI page: {page}"),
+            ))
+        }
     };
-    Ok(Json(serde_json::to_value(&AdminUiResponse::page(def)).unwrap()))
+    Ok(Json(
+        serde_json::to_value(AdminUiResponse::page(def)).unwrap(),
+    ))
 }
 
 #[allow(dead_code)]
-fn col(key: &str, label: &str) -> WidgetDataTableColumn { WidgetDataTableColumn { key: key.into(), label: label.into(), sortable: false, width: None, format: None } }
+fn col(key: &str, label: &str) -> WidgetDataTableColumn {
+    WidgetDataTableColumn {
+        key: key.into(),
+        label: label.into(),
+        sortable: false,
+        width: None,
+        format: None,
+    }
+}
 #[allow(dead_code)]
-fn cols(key: &str, label: &str) -> WidgetDataTableColumn { WidgetDataTableColumn { key: key.into(), label: label.into(), sortable: true, width: None, format: None } }
+fn cols(key: &str, label: &str) -> WidgetDataTableColumn {
+    WidgetDataTableColumn {
+        key: key.into(),
+        label: label.into(),
+        sortable: true,
+        width: None,
+        format: None,
+    }
+}
 #[allow(dead_code)]
 fn table(columns: Vec<WidgetDataTableColumn>, endpoint: &str) -> RemoteWidget {
-    RemoteWidget::DataTable(WidgetDataTable { columns, data_endpoint: endpoint.into(), sortable: true, filterable: true, page_size: 20, empty_message: Some("No data.".into()), row_link: None, row_actions: vec![] })
+    RemoteWidget::DataTable(WidgetDataTable {
+        columns,
+        data_endpoint: endpoint.into(),
+        sortable: true,
+        filterable: true,
+        page_size: 20,
+        empty_message: Some("No data.".into()),
+        row_link: None,
+        row_actions: vec![],
+    })
 }
 fn card(title: &str, body: &str) -> RemoteWidget {
-    RemoteWidget::Card(WidgetCard { title: Some(title.into()), subtitle: None, children: vec![RemoteWidget::Text(WidgetText { text: body.into(), text_type: WidgetTextType::Body, align: TextAlign::Left, max_lines: None })], actions: vec![] })
+    RemoteWidget::Card(WidgetCard {
+        title: Some(title.into()),
+        subtitle: None,
+        children: vec![RemoteWidget::Text(WidgetText {
+            text: body.into(),
+            text_type: WidgetTextType::Body,
+            align: TextAlign::Left,
+            max_lines: None,
+        })],
+        actions: vec![],
+    })
 }
 #[allow(dead_code)]
-fn link(label: &str, route: &str) -> AdminUiAction { AdminUiAction { label: label.into(), action_type: AdminUiActionType::Link, route: Some(route.into()), endpoint: None, icon: Some("0xe145".into()) } }
+fn link(label: &str, route: &str) -> AdminUiAction {
+    AdminUiAction {
+        label: label.into(),
+        action_type: AdminUiActionType::Link,
+        route: Some(route.into()),
+        endpoint: None,
+        icon: Some("0xe145".into()),
+    }
+}

@@ -17,13 +17,13 @@ mod auth;
 #[allow(dead_code)]
 mod config;
 mod event_consumer;
-mod platform_exec;
 mod event_emit;
 #[allow(dead_code)]
 mod handlers;
 mod openapi;
-mod registration;
+mod platform_exec;
 pub mod policy;
+mod registration;
 #[allow(dead_code)]
 mod server;
 mod state_machine;
@@ -31,7 +31,6 @@ mod state_machine;
 mod types;
 
 use utoipa::OpenApi;
-
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

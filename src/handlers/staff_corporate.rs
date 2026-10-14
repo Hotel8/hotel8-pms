@@ -34,22 +34,30 @@ pub async fn update_reservation(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
     // Refuse edits on terminal statuses (state machine guard, DESIGN.md §3).
-    let status: String = sqlx::query("SELECT status::text AS status FROM pms.reservations WHERE id = $1 AND property_id = $2")
-        .bind(res_id)
-        .bind(property_id)
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(|e| match e {
-            sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"),
-            e => super::err_db(e),
-        })?
-        .get("status");
+    let status: String = sqlx::query(
+        "SELECT status::text AS status FROM pms.reservations WHERE id = $1 AND property_id = $2",
+    )
+    .bind(res_id)
+    .bind(property_id)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => super::err_not_found("Reservation not found"),
+        e => super::err_db(e),
+    })?
+    .get("status");
     if matches!(status.as_str(), "CANCELLED" | "CHECKED_OUT" | "NO_SHOW") {
         return Err((
             StatusCode::CONFLICT,
@@ -75,11 +83,31 @@ pub async fn update_reservation(
     .bind(property_id)
     .bind(req.get("arrival_date").and_then(|v| v.as_str()))
     .bind(req.get("departure_date").and_then(|v| v.as_str()))
-    .bind(req.get("num_adults").and_then(|v| v.as_u64()).map(|v| v as i32))
-    .bind(req.get("num_children").and_then(|v| v.as_u64()).map(|v| v as i32))
-    .bind(req.get("num_rooms").and_then(|v| v.as_u64()).map(|v| v as i32))
-    .bind(req.get("room_type_id").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok()))
-    .bind(req.get("rate_plan_id").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok()))
+    .bind(
+        req.get("num_adults")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as i32),
+    )
+    .bind(
+        req.get("num_children")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as i32),
+    )
+    .bind(
+        req.get("num_rooms")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as i32),
+    )
+    .bind(
+        req.get("room_type_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+    )
+    .bind(
+        req.get("rate_plan_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+    )
     .bind(req.get("special_requests").and_then(|v| v.as_str()))
     .fetch_one(&mut *conn)
     .await
@@ -113,7 +141,13 @@ pub async fn create_walk_in(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:reservation:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -123,13 +157,24 @@ pub async fn create_walk_in(
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
         .ok_or_else(|| super::err_bad_request("room_type_id required"))?;
-    let arrival = req.get("arrival_date").and_then(|v| v.as_str()).unwrap_or("");
-    let departure = req.get("departure_date").and_then(|v| v.as_str()).unwrap_or("");
-    let last_name = req.get("last_name").and_then(|v| v.as_str()).unwrap_or("Walk-in");
+    let arrival = req
+        .get("arrival_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let departure = req
+        .get("departure_date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let last_name = req
+        .get("last_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Walk-in");
     let first_name = req.get("first_name").and_then(|v| v.as_str()).unwrap_or("");
     let num_rooms = req.get("num_rooms").and_then(|v| v.as_u64()).unwrap_or(1) as i32;
     if arrival.is_empty() || departure.is_empty() {
-        return Err(super::err_bad_request("arrival_date and departure_date required"));
+        return Err(super::err_bad_request(
+            "arrival_date and departure_date required",
+        ));
     }
 
     // Availability gate — never oversell (DESIGN.md §8).
@@ -155,7 +200,12 @@ pub async fn create_walk_in(
     })?;
     let available: i32 = rt.get("available");
     if available < num_rooms {
-        return Err((StatusCode::CONFLICT, format!("room type sold out for the window (available {available}, requested {num_rooms})")));
+        return Err((
+            StatusCode::CONFLICT,
+            format!(
+                "room type sold out for the window (available {available}, requested {num_rooms})"
+            ),
+        ));
     }
 
     // Ensure a guest profile row for the walk-in guest.
@@ -223,7 +273,13 @@ pub async fn list_company_payment_methods(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -237,9 +293,16 @@ pub async fn list_company_payment_methods(
         "SELECT id, company_profile_id, label, payment_method_id, approval, credit_limit::text AS credit_limit, approved_at, created_at
          FROM pms.company_payment_methods WHERE property_id = $1 AND company_profile_id = $2 {where_clause} ORDER BY created_at"
     );
-    let rows = sqlx::query(&sql).bind(property_id).bind(profile_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
+    let rows = sqlx::query(&sql)
+        .bind(property_id)
+        .bind(profile_id)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": rows.iter().map(company_method_json).collect::<Vec<_>>() })))
+    Ok(Json(
+        serde_json::json!({ "items": rows.iter().map(company_method_json).collect::<Vec<_>>() }),
+    ))
 }
 
 /// `POST .../companies/{profile_id}/payment-methods` — hotel sales registers a
@@ -251,7 +314,13 @@ pub async fn create_company_payment_method(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -267,11 +336,19 @@ pub async fn create_company_payment_method(
             e => super::err_db(e),
         })?;
 
-    let approval = req.get("approval").and_then(|v| v.as_str()).unwrap_or("PENDING");
+    let approval = req
+        .get("approval")
+        .and_then(|v| v.as_str())
+        .unwrap_or("PENDING");
     if !["PENDING", "POSTPAY", "BILL_TO_COMPANY", "REJECTED"].contains(&approval) {
-        return Err(super::err_bad_request(&format!("unknown approval: {approval}")));
+        return Err(super::err_bad_request(&format!(
+            "unknown approval: {approval}"
+        )));
     }
-    let label = req.get("label").and_then(|v| v.as_str()).unwrap_or("Corporate account");
+    let label = req
+        .get("label")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Corporate account");
     let row = sqlx::query(
         "INSERT INTO pms.company_payment_methods (property_id, company_profile_id, label, payment_method_id, approval, credit_limit, approved_at)
          VALUES ($1, $2, $3, $4, $5, NULLIF($6,'')::numeric, CASE WHEN $5 IN ('POSTPAY','BILL_TO_COMPANY') THEN now() ELSE NULL END)
@@ -328,7 +405,13 @@ pub async fn list_company_users(
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -372,7 +455,13 @@ pub async fn create_company_user(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -382,11 +471,19 @@ pub async fn create_company_user(
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
         .ok_or_else(|| super::err_bad_request("traveler_profile_id required"))?;
-    let role = req.get("role_at_company").and_then(|v| v.as_str()).unwrap_or("TRAVELER");
+    let role = req
+        .get("role_at_company")
+        .and_then(|v| v.as_str())
+        .unwrap_or("TRAVELER");
     if !["ADMIN", "BOOKING_AGENT", "TRAVELER"].contains(&role) {
-        return Err(super::err_bad_request(&format!("unknown role_at_company: {role}")));
+        return Err(super::err_bad_request(&format!(
+            "unknown role_at_company: {role}"
+        )));
     }
-    let is_default = req.get("is_default").and_then(|v| v.as_bool()).unwrap_or(false);
+    let is_default = req
+        .get("is_default")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     let row = sqlx::query(
         "INSERT INTO pms.company_users (property_id, company_profile_id, traveler_profile_id, role_at_company, is_default)
@@ -432,7 +529,13 @@ pub async fn list_companies_for_traveler(
     Path((property_id, traveler_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -474,11 +577,17 @@ pub async fn get_kiosk_config(
     Path(property_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let row = kiosk_config_row(&mut *conn, property_id, env_id).await?;
+    let row = kiosk_config_row(&mut conn, property_id, env_id).await?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(kiosk_config_json(&row)))
 }
@@ -491,7 +600,13 @@ pub async fn update_kiosk_config(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -499,7 +614,11 @@ pub async fn update_kiosk_config(
     let modes: Vec<String> = req
         .get("enabled_modes")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|m| m.as_str().map(str::to_owned)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.as_str().map(str::to_owned))
+                .collect()
+        })
         .unwrap_or_default();
     for m in &modes {
         if !["CHECK_IN", "CHECK_OUT", "COLLECT_KEY", "WALK_IN"].contains(&m.as_str()) {
@@ -515,12 +634,22 @@ pub async fn update_kiosk_config(
     let addon_codes: Vec<String> = req
         .get("addon_package_codes")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|m| m.as_str().map(str::to_owned)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.as_str().map(str::to_owned))
+                .collect()
+        })
         .unwrap_or_default();
-    let max_keys = req.get("max_keys_per_stay").and_then(|v| v.as_u64()).unwrap_or(4) as i32;
-    let lockdown = req.get("lockdown").and_then(|v| v.as_bool()).unwrap_or(false);
+    let max_keys = req
+        .get("max_keys_per_stay")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(4) as i32;
+    let lockdown = req
+        .get("lockdown")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
-    kiosk_config_row(&mut *conn, property_id, env_id).await?;
+    kiosk_config_row(&mut conn, property_id, env_id).await?;
     let row = sqlx::query(
         "UPDATE pms.kiosk_config SET enabled_modes = $2, addon_package_codes = $3, max_keys_per_stay = $4, lockdown = $5, updated_at = now()
          WHERE property_id = $1 RETURNING *",
@@ -559,7 +688,13 @@ pub async fn get_company_admin_provisioning(
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -602,7 +737,13 @@ pub async fn provision_company_admin(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:profile:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:profile:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -635,10 +776,16 @@ pub async fn provision_company_admin(
     }
 
     // Resolve or create the first admin's traveler profile by email.
-    let email = req.get("email").and_then(|v| v.as_str()).and_then(|s| some_nonempty(s))
+    let email = req
+        .get("email")
+        .and_then(|v| v.as_str())
+        .and_then(some_nonempty)
         .ok_or_else(|| super::err_bad_request("email required"))?;
     let first_name = req.get("first_name").and_then(|v| v.as_str()).unwrap_or("");
-    let last_name = req.get("last_name").and_then(|v| v.as_str()).unwrap_or("Admin");
+    let last_name = req
+        .get("last_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Admin");
     let existing: Option<uuid::Uuid> = sqlx::query(
         "SELECT id FROM pms.guest_profiles WHERE property_id = $1 AND profile_type = 'GUEST' AND lower(email) = lower($2) LIMIT 1",
     )
@@ -701,7 +848,11 @@ pub async fn provision_company_admin(
 }
 
 fn some_nonempty(s: &str) -> Option<String> {
-    if s.trim().is_empty() { None } else { Some(s.to_string()) }
+    if s.trim().is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
 }
 
 /// Read the config row, materializing the default row on first access

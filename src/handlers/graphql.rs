@@ -4,11 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! GraphQL endpoint handler.
+use crate::auth;
+use crate::handlers::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
-use crate::handlers::AppState;
-use crate::auth;
 
 pub async fn graphql(
     State(state): State<AppState>,
@@ -16,7 +16,13 @@ pub async fn graphql(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pms:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pms:read"),
+    )
+    .await?;
     let query = req.get("query").and_then(|v| v.as_str()).unwrap_or("");
     // Simple introspection: return schema info for now
     if query.contains("__schema") || query.contains("__type") {

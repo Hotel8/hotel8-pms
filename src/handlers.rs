@@ -4,28 +4,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! PMS HTTP handlers — re-exports from sub-modules.
-pub mod properties;
-pub mod rooms;
-pub mod rate_plans;
-pub mod availability;
-pub mod profiles;
-pub mod reservations;
-pub mod front_desk;
-pub mod housekeeping;
-pub mod cashiering;
-pub mod blocks;
-pub mod events;
-pub mod lov;
-pub mod back_office;
-pub mod graphql;
-pub mod integration;
-pub mod guest_surfaces;
-pub mod staff_corporate;
 pub mod admin_data;
+pub mod availability;
+pub mod back_office;
+pub mod blocks;
+pub mod cashiering;
+pub mod events;
+pub mod front_desk;
+pub mod graphql;
+pub mod guest_surfaces;
+pub mod housekeeping;
+pub mod integration;
+pub mod lov;
+pub mod profiles;
+pub mod properties;
+pub mod rate_plans;
+pub mod reservations;
+pub mod rooms;
+pub mod staff_corporate;
 
-use std::sync::Arc;
 use crate::config::H8pmsConfig;
 use sentin8::auth::client::AuthContext;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -43,10 +43,7 @@ pub struct AppState {
 }
 
 /// Set the RLS tenant context on a connection (transaction-local).
-pub async fn set_tenant_context(
-    conn: &mut sqlx::PgConnection,
-    env_id: uuid::Uuid,
-) {
+pub async fn set_tenant_context(conn: &mut sqlx::PgConnection, env_id: uuid::Uuid) {
     let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
         .bind(env_id)
         .execute(conn)
@@ -78,10 +75,7 @@ pub fn resolve_org_env(auth: &AuthContext) -> uuid::Uuid {
 }
 
 pub fn err_db(e: sqlx::Error) -> (axum::http::StatusCode, String) {
-    (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        e.to_string(),
-    )
+    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
 }
 
 /// Map an outbox-emission failure to a 500 (DBX: a silently lost

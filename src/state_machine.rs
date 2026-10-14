@@ -345,7 +345,10 @@ mod tests {
         let all = [Confirmed, CheckedIn, CheckedOut, NoShow, Cancelled];
         for from in [CheckedOut, NoShow, Cancelled] {
             for to in all {
-                assert!(!from.can_transition_to(to), "{from:?} → {to:?} must be illegal");
+                assert!(
+                    !from.can_transition_to(to),
+                    "{from:?} → {to:?} must be illegal"
+                );
             }
         }
     }
