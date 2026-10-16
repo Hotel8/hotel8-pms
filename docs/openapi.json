@@ -1,0 +1,561 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hotel8-pms",
+    "description": "Sentin8 Hotel8:PMS — Property Management System for the hospitality industry.",
+    "license": {
+      "name": "MIT OR Apache-2.0",
+      "identifier": "MIT OR Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/admin/blocks": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/blocks`",
+        "operationId": "list_blocks",
+        "responses": {
+          "200": {
+            "description": "List of blocks",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/events": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/events`",
+        "operationId": "list_events",
+        "responses": {
+          "200": {
+            "description": "List of events",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/frontdesk": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/in-house`",
+        "operationId": "list_in_house",
+        "responses": {
+          "200": {
+            "description": "List of in-house guests",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/housekeeping": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/housekeeping`",
+        "operationId": "list_housekeeping_tasks",
+        "responses": {
+          "200": {
+            "description": "List of housekeeping tasks",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/rates": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/rate-plans`",
+        "operationId": "list_rate_plans",
+        "responses": {
+          "200": {
+            "description": "List of rate plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RatePlan"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{property_id}/rate-plans`",
+        "operationId": "create_rate_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatePlanCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Rate plan created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatePlan"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/reports": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/reports/occupancy`",
+        "operationId": "get_occupancy_report",
+        "responses": {
+          "200": {
+            "description": "Occupancy report",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/reservations": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/reservations`",
+        "operationId": "search_reservations",
+        "responses": {
+          "200": {
+            "description": "List of reservations",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{property_id}/reservations`",
+        "operationId": "create_reservation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation created",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/reservations/{id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/reservations/{res_id}`",
+        "operationId": "get_reservation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          },
+          "404": {
+            "description": "Reservation not found"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RatePlan": {
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "rate_plan_code",
+          "rate_plan_name",
+          "currency_code",
+          "is_active",
+          "is_negotiated",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "cancellation_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency_code": {
+            "type": "string"
+          },
+          "deposit_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guarantee_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_negotiated": {
+            "type": "boolean"
+          },
+          "market_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rate_category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_plan_code": {
+            "type": "string"
+          },
+          "rate_plan_name": {
+            "type": "string"
+          },
+          "source_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RatePlanCreate": {
+        "type": "object",
+        "required": [
+          "rate_plan_code",
+          "rate_plan_name",
+          "currency_code"
+        ],
+        "properties": {
+          "cancellation_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency_code": {
+            "type": "string"
+          },
+          "deposit_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guarantee_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "is_negotiated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "market_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "rate_category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_plan_code": {
+            "type": "string"
+          },
+          "rate_plan_name": {
+            "type": "string"
+          },
+          "source_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "security": [],
+  "tags": [
+    {
+      "name": "pms",
+      "description": "Hotel8:PMS admin API — reservations, rates, blocks, events, frontdesk, housekeeping, reports"
+    }
+  ]
+}
