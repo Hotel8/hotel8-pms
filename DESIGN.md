@@ -150,7 +150,7 @@ sequenceDiagram
     Note over DB,BUS: post-commit — shell relay drains pms.outbox
     BUS->>BUS: produce (idempotency_key = outbox row id)
     alt relay failure (Bus down)
-        DB->>DB: row stays unrelayed; 5s safety poll retries
+        DB->>DB: row stays unrelayed, 5s safety poll retries
     end
 ```
 
@@ -357,7 +357,7 @@ sequenceDiagram
         BUS-->>REL: 200
         DB->>DB: row relayed = true
     else failure
-        DB->>DB: relay_attempts += 1; 5s poll retries; DLQ at max
+        DB->>DB: relay_attempts += 1, 5s poll retries, DLQ at max
     end
     BUS->>CON: stream pms (XADD bus:{env}:pms)
     CON->>BUS: ack (consumer groups)
