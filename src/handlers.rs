@@ -91,6 +91,17 @@ pub fn err_not_found(msg: &str) -> (axum::http::StatusCode, String) {
 pub fn err_bad_request(msg: &str) -> (axum::http::StatusCode, String) {
     (axum::http::StatusCode::BAD_REQUEST, msg.to_string())
 }
+#[utoipa::path(
+    get,
+    path = "/v1/health",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn health(
     axum::extract::State(state): axum::extract::State<AppState>,

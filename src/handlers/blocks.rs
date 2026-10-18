@@ -13,6 +13,17 @@ use axum::Json;
 use sqlx::Row;
 
 // ── Blocks ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/blocks",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_block(
     State(state): State<AppState>,
@@ -67,7 +78,7 @@ pub async fn create_block(
 /// `GET /v1/properties/{property_id}/blocks`
 #[utoipa::path(
     get,
-    path = "/v1/admin/blocks",
+    path = "/v1/properties/{property_id}/blocks",
     responses(
         (status = 200, description = "List of blocks", body = serde_json::Value),
         (status = 403, description = "Missing pms:admin scope"),
@@ -116,6 +127,17 @@ pub async fn list_blocks(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/blocks/{block_id}/status",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_block_status(
     State(state): State<AppState>,
@@ -180,6 +202,17 @@ pub async fn update_block_status(
 }
 
 // ── Block next statuses ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/blocks/{block_id}/next-statuses",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_next_statuses(
     State(state): State<AppState>,
@@ -227,6 +260,17 @@ pub async fn get_next_statuses(
 }
 
 // ── Posting Master ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/blocks/{block_id}/posting-master",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_posting_master(
     State(state): State<AppState>,
@@ -269,6 +313,17 @@ pub async fn create_posting_master(
 }
 
 // ── Function Space Availability ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/function-spaces",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_available_spaces(
     State(state): State<AppState>,
@@ -317,6 +372,17 @@ pub async fn get_available_spaces(
 }
 
 // ── Event Resources ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/events/{event_id}/resources",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_event_resources(
     State(state): State<AppState>,
@@ -344,6 +410,17 @@ pub async fn get_event_resources(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/events/{event_id}/resources",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_event_resources(
     State(state): State<AppState>,
@@ -401,6 +478,17 @@ pub async fn update_event_resources(
 }
 
 // ── Events ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/events",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_event(
     State(state): State<AppState>,
@@ -456,7 +544,7 @@ pub async fn create_event(
 /// `GET /v1/properties/{property_id}/events`
 #[utoipa::path(
     get,
-    path = "/v1/admin/events",
+    path = "/v1/properties/{property_id}/events",
     responses(
         (status = 200, description = "List of events", body = serde_json::Value),
         (status = 403, description = "Missing pms:admin scope"),

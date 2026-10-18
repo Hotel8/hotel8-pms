@@ -13,6 +13,17 @@ use hotel8::pms::contracts::{Room, RoomCreate, RoomStatusUpdate, RoomType, RoomT
 use sqlx::Row;
 
 // ── Room Types ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/room-types",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_room_type(
     State(state): State<AppState>,
@@ -58,6 +69,17 @@ pub async fn create_room_type(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row_to_room_type(&row)))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/room-types",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_room_types(
     State(state): State<AppState>,
@@ -85,6 +107,17 @@ pub async fn list_room_types(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(rows.iter().map(row_to_room_type).collect()))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}/room-types/{type_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn delete_room_type(
     State(state): State<AppState>,
@@ -113,6 +146,17 @@ pub async fn delete_room_type(
 }
 
 // ── Rooms ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/rooms",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_room(
     State(state): State<AppState>,
@@ -159,6 +203,17 @@ pub async fn create_room(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row_to_room(&row)))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/rooms",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_rooms(
     State(state): State<AppState>,
@@ -184,6 +239,17 @@ pub async fn list_rooms(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(rows.iter().map(row_to_room).collect()))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/rooms/{room_number}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_room_status(
     State(state): State<AppState>,
@@ -315,6 +381,17 @@ pub fn validate_room_status_matrix(fo: &str, hk: &str) -> Result<(), String> {
 }
 
 // ── -Room Inventory ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/inventory",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_inventory(
     State(state): State<AppState>,
@@ -363,6 +440,17 @@ pub async fn get_inventory(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/inventory/sell-limits",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_sell_limit(
     State(state): State<AppState>,
@@ -421,6 +509,17 @@ pub async fn update_sell_limit(
 }
 
 // ── Item Inventory (non-room sellable items: amenity kits, minibar, parking passes, etc.) ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/items",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_item(
     State(state): State<AppState>,
@@ -489,6 +588,17 @@ pub async fn create_item(
         "reorder_point": row.get::<i32, _>("reorder_point"), "is_sellable": row.get::<bool, _>("is_sellable"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/items",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_items(
     State(state): State<AppState>,
@@ -521,6 +631,17 @@ pub async fn list_items(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/items/{item_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_item(
     State(state): State<AppState>,
@@ -584,6 +705,17 @@ pub async fn update_item(
         "is_sellable": row.get::<bool, _>("is_sellable"),
     })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}/items/{item_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn delete_item(
     State(state): State<AppState>,

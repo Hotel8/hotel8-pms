@@ -10,6 +10,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/lov",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_lov(
     State(state): State<AppState>,
@@ -48,6 +59,17 @@ pub async fn list_lov(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/lov",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_lov(
     State(state): State<AppState>,
@@ -96,6 +118,17 @@ pub async fn create_lov(
         "sort_order": row.get::<i32, _>("sort_order"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/lov/{lov_type}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_lov_by_type(
     State(state): State<AppState>,

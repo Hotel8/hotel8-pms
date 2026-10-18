@@ -22,6 +22,17 @@ use crate::event_emit::{emit_tx, Publisher};
 use crate::handlers::{resolve_org_env, set_tenant_context, AppState};
 
 // ── Digital keys ──────────────────────────────────────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/digital-keys",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// List digital keys for a reservation.
 pub async fn list_digital_keys(
@@ -77,6 +88,17 @@ pub async fn list_digital_keys(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(json!({ "items": items })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/digital-keys",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Issue digital keys for a checked-in reservation (idempotent by room + count).
 pub async fn issue_digital_key(
@@ -183,6 +205,17 @@ pub async fn issue_digital_key(
         json!({ "items": issued.iter().map(|i| json!({"id": i})).collect::<Vec<_>>() }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/digital-keys/{key_id}/activate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Activate a digital key.
 pub async fn activate_digital_key(
@@ -192,6 +225,17 @@ pub async fn activate_digital_key(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     transition_key(state, headers, property_id, key_id, "ACTIVE").await
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/digital-keys/{key_id}/deactivate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Deactivate (revoke) a digital key.
 pub async fn deactivate_digital_key(
@@ -271,6 +315,17 @@ async fn transition_key(
 }
 
 // ── Folios by room (check-out settlement view) ────────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/folios",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Open folio for the in-house stay in a room — the kiosk/eGuest check-out
 /// view over the same folio rows the per-reservation route returns.
@@ -384,6 +439,17 @@ pub async fn get_folio_by_room(
 }
 
 // ── Boarding pass (check-in artifact) ─────────────────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/boarding-pass",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Boarding pass — the check-in artifact the kiosk completion step renders
 /// (room, dates, guest, key count). Computed from live rows, never stored.
@@ -452,6 +518,17 @@ pub async fn get_boarding_pass(
 }
 
 // ── Stay feedback ─────────────────────────────────────────────────────────
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/feedback",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Submit (or update) stay feedback — one row per reservation.
 pub async fn submit_feedback(
@@ -518,6 +595,17 @@ pub async fn submit_feedback(
         "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/feedback",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// Read stay feedback for a reservation.
 pub async fn get_feedback(
@@ -564,6 +652,17 @@ pub async fn get_feedback(
     }))
 }
 // ── Guest payment methods (saved bill8 token references) ──────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/payment-methods",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `GET /v1/properties/{p}/payment-methods` — the signed-in guest's saved
 /// payment methods, resolved by the session subject (holder-scoped). Rows
@@ -601,6 +700,17 @@ pub async fn list_payment_methods(
         json!({ "items": rows.iter().map(payment_method_json).collect::<Vec<_>>() }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/payment-methods",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `POST /v1/properties/{p}/payment-methods` — save a tokenized method
 /// (bill8 already holds the instrument; PMS stores the reference).
@@ -666,6 +776,17 @@ pub async fn create_payment_method(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(payment_method_json(&row)))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}/payment-methods/{method_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `DELETE /v1/properties/{p}/payment-methods/{method_id}` — remove a saved
 /// method (holder-scoped: only the owner's rows are deletable).
@@ -712,6 +833,17 @@ fn payment_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
 }
 
 // ── Reservation ↔ guest linking (anonymous bookings → signed-in profile) ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/link-guest",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `POST /v1/properties/{p}/reservations/{res_id}/link-guest` — bind the
 /// signed-in session's guest profile to a booking made anonymously in eBooking.

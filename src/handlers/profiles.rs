@@ -10,6 +10,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/profiles",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_profile(
     State(state): State<AppState>,
@@ -73,6 +84,17 @@ pub async fn create_profile(
         "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/profiles",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_profiles(
     State(state): State<AppState>,
@@ -116,6 +138,17 @@ pub async fn list_profiles(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_profile(
     State(state): State<AppState>,
@@ -164,6 +197,17 @@ pub async fn get_profile(
 }
 
 // ── Preference management ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}/preferences",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn add_preference(
     State(state): State<AppState>,
@@ -200,6 +244,17 @@ pub async fn add_preference(
         serde_json::json!({ "id": id, "preference_type": row.get::<String, _>("preference_type"), "preference_code": row.get::<String, _>("preference_code"), "preference_value": row.get::<Option<String>, _>("preference_value") }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}/preferences",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_preferences(
     State(state): State<AppState>,
@@ -226,6 +281,17 @@ pub async fn list_preferences(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}/preferences/{pref_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn remove_preference(
     State(state): State<AppState>,
@@ -253,6 +319,17 @@ pub async fn remove_preference(
 }
 
 // ── Loyalty Program linking ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}/loyalty",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn link_loyalty(
     State(state): State<AppState>,
@@ -288,6 +365,17 @@ pub async fn link_loyalty(
 }
 
 // ── Stay History ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}/stay-history",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_stay_history(
     State(state): State<AppState>,
@@ -318,6 +406,17 @@ pub async fn get_stay_history(
 }
 
 // ── Profile merge — deduplicate guest profiles, merge stay history ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/profiles/merge",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn merge_profiles(
     State(state): State<AppState>,
@@ -422,6 +521,17 @@ pub async fn merge_profiles(
     })))
 }
 // ── Loyalty member link (service-to-service) ──
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/profiles/{profile_id}/loyalty-number",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number`
 /// Sets the loyalty member number on a guest profile. Called by Hotel8:Loyalty

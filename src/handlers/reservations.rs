@@ -14,7 +14,7 @@ use sqlx::Row;
 /// `POST /v1/properties/{property_id}/reservations`
 #[utoipa::path(
     post,
-    path = "/v1/admin/reservations",
+    path = "/v1/properties/{property_id}/reservations",
     request_body = serde_json::Value,
     responses(
         (status = 200, description = "Reservation created", body = serde_json::Value),
@@ -82,7 +82,7 @@ pub async fn create_reservation(
 /// `GET /v1/properties/{property_id}/reservations`
 #[utoipa::path(
     get,
-    path = "/v1/admin/reservations",
+    path = "/v1/properties/{property_id}/reservations",
     responses(
         (status = 200, description = "List of reservations", body = serde_json::Value),
         (status = 403, description = "Missing pms:admin scope"),
@@ -215,7 +215,7 @@ pub async fn search_reservations(
 /// `GET /v1/properties/{property_id}/reservations/{res_id}`
 #[utoipa::path(
     get,
-    path = "/v1/admin/reservations/{id}",
+    path = "/v1/properties/{property_id}/reservations/{res_id}",
     params(("id" = uuid::Uuid, Path, description = "Reservation ID")),
     responses(
         (status = 200, description = "Reservation", body = serde_json::Value),
@@ -253,6 +253,17 @@ pub async fn get_reservation(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row_to_json(&row)))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/cancel",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn cancel_reservation(
     State(state): State<AppState>,
@@ -321,6 +332,17 @@ pub(crate) fn row_to_json(row: &sqlx::postgres::PgRow) -> serde_json::Value {
 }
 
 // ── Reservation split ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/split",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn split_reservation(
     State(state): State<AppState>,
@@ -388,6 +410,17 @@ pub async fn split_reservation(
 }
 
 // ── Reservation upsell ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/upsell",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn upsell_reservation(
     State(state): State<AppState>,
@@ -426,6 +459,17 @@ pub async fn upsell_reservation(
 }
 
 // ── fetchInstructions ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/instructions",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn fetch_instructions(
     State(state): State<AppState>,

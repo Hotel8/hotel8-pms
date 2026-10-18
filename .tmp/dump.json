@@ -1,0 +1,3954 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hotel8-pms",
+    "description": "Sentin8 Hotel8:PMS — Property Management System for the hospitality industry.",
+    "license": {
+      "name": "MIT OR Apache-2.0",
+      "identifier": "MIT OR Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/admin/ui/{page}": {
+      "get": {
+        "tags": [
+          "pms-admin"
+        ],
+        "operationId": "get_admin_ui",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/admin/{property_id}/{resource}": {
+      "get": {
+        "tags": [
+          "pms-admin"
+        ],
+        "summary": "`GET /v1/admin/{resource}` — admin data for the RFW tables. Each resource\nmaps to its Shield `read` action; unknown resources 404.",
+        "operationId": "get_admin_data",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms-admin"
+        ],
+        "summary": "`POST /v1/admin/{resource}` — form-submit aliases. The RFW renderer only\nPOSTs; each alias calls the SAME public domain handler (shared business\nrules), so the admin surface can create/update/delete exactly what staff\ncan.",
+        "operationId": "submit_admin_data",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/async/result/{job_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_async_result",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/async/status/{job_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_async_status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/availability": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "search_availability_org",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/graphql": {
+      "post": {
+        "tags": [
+          "pms-graphql"
+        ],
+        "operationId": "graphql",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_properties",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_property",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_property",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_property",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "delete_property",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/async": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_async_job",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/async/cashiering": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_cashiering_async",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/async/crm": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_crm_async",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/async/inventory": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_inventory_async",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/async/par": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_par_async",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/audit-log": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_audit_log",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/availability": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "search_availability",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/blocks": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/blocks`",
+        "operationId": "list_blocks",
+        "responses": {
+          "200": {
+            "description": "List of blocks",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_block",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/blocks/{block_id}/next-statuses": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_next_statuses",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/blocks/{block_id}/posting-master": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_posting_master",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/blocks/{block_id}/status": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_block_status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/companies/by-traveler/{profile_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/companies/by-traveler/{profile_id}` — the\ncompanies a traveler is bound to (multi-company session switcher).",
+        "operationId": "list_companies_for_traveler",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/companies/{profile_id}/admin-provisioning": {
+      "get": {
+        "tags": [
+          "pms-admin"
+        ],
+        "summary": "`GET .../companies/{profile_id}/admin-provisioning` — whether the company\nstill needs its first corporate admin provisioned (no IdP + no bound\nADMIN user). The corporate login page reads this after company-code\nverification to decide between the normal login and the provisioning flow.",
+        "operationId": "get_company_admin_provisioning",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "tags": [
+          "pms-admin"
+        ],
+        "summary": "`PUT .../companies/{profile_id}/admin-provisioning` — provision the first\ncorporate admin: binds the traveler (created on the fly when needed) as\n`ADMIN` and stamps `preferences.provisioned_admin_at`. Idempotent —\nre-provisioning an already-admin company is a no-op returning the\nexisting state with `already_provisioned: true`.",
+        "operationId": "provision_company_admin",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/companies/{profile_id}/payment-methods": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/companies/{profile_id}/payment-methods` —\ncredit-approved methods for a company profile. Checkout surfaces the\n`POSTPAY`/`BILL_TO_COMPANY` rows; everything else is bookkeeping.",
+        "operationId": "list_company_payment_methods",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST .../companies/{profile_id}/payment-methods` — hotel sales registers a\nmethod or approves a pending one (admin surface).",
+        "operationId": "create_company_payment_method",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/companies/{profile_id}/users": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET .../companies/{profile_id}/users` — the company's traveler roster.",
+        "operationId": "list_company_users",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST .../companies/{profile_id}/users` — bind a traveler to the company.",
+        "operationId": "create_company_user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/config": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_property_config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/corporate-availability": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{property_id}/corporate-availability` — availability\nfor a corporate session (company_profile_id). Rate-mix policy: when the\nrequest carries a company context, ONLY the negotiated rate plans linked\nto that company (via `preferences.negotiated_rate_plan_ids`) are returned;\npublic plans are withheld so negotiated rates never leak to non-members\nand members never book public rates against their contract. Companies\nwith no linked plans get an explicit empty result, not a public fallback.",
+        "operationId": "corporate_availability",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/digital-keys": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "List digital keys for a reservation.",
+        "operationId": "list_digital_keys",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Issue digital keys for a checked-in reservation (idempotent by room + count).",
+        "operationId": "issue_digital_key",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/digital-keys/{key_id}/activate": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Activate a digital key.",
+        "operationId": "activate_digital_key",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/digital-keys/{key_id}/deactivate": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Deactivate (revoke) a digital key.",
+        "operationId": "deactivate_digital_key",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/end-of-day": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "end_of_day",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/end-of-day/exceptions": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_eod_exceptions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/end-of-day/{eod_id}/retry": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "retry_eod",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/events": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_events",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_event",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/events/{event_id}/resources": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_event_resources",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_event_resources",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/external-systems": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_external_system_config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_external_system_config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/feedback": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Read stay feedback for a reservation.",
+        "operationId": "get_feedback",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Submit (or update) stay feedback — one row per reservation.",
+        "operationId": "submit_feedback",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/flow/workflows": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "start_sentin8_flow_workflow",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/folios": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Open folio for the in-house stay in a room — the kiosk/eGuest check-out\nview over the same folio rows the per-reservation route returns.",
+        "operationId": "get_folio_by_room",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/func/invoke": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "invoke_sentin8_func_module",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/function-spaces": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_available_spaces",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/guarantee-policies": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_guarantee_policies",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/housekeeping": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/housekeeping`",
+        "operationId": "list_housekeeping_tasks",
+        "responses": {
+          "200": {
+            "description": "List of housekeeping tasks",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/properties/{property_id}/housekeeping/forecast": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_forecast",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/housekeeping/tasks": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_tasks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_task",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/housekeeping/tasks/{task_id}": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_task",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/housekeeping/{room_number}": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_housekeeping_status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/images": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "upload_property_image",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/in-house": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/in-house`",
+        "operationId": "list_in_house",
+        "responses": {
+          "200": {
+            "description": "List of in-house guests",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/properties/{property_id}/inventory": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_inventory",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/inventory/sell-limits": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_sell_limit",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/items": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_items",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_item",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/items/{item_id}": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_item",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "delete_item",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/kiosk-config": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET .../kiosk-config` — the terminal's mode menu source of truth (eKiosk\nbootstrap read). Defaults are materialized on first read so the terminal\nalways gets a row.",
+        "operationId": "get_kiosk_config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`PUT .../kiosk-config` — admin RFW settings mutation (`hotel8:pms:admin`).",
+        "operationId": "update_kiosk_config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/lov": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_lov",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_lov",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/lov/{lov_type}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_lov_by_type",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/modules": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_property_modules",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_property_modules",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/negotiated-rate-plans": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_negotiated_rate_plans",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/negotiated-rate-plans/{rate_plan_id}/link-company": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "link_negotiated_rate_to_company",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/notifications": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "send_notification",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/packages": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_packages",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_package",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/payment-methods": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{p}/payment-methods` — the signed-in guest's saved\npayment methods, resolved by the session subject (holder-scoped). Rows\ncarry bill8 token references only — never PAN or token secrets (DESIGN.md\n§3 secret-reference rule).",
+        "operationId": "list_payment_methods",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{p}/payment-methods` — save a tokenized method\n(bill8 already holds the instrument; PMS stores the reference).",
+        "operationId": "create_payment_method",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/payment-methods/{method_id}": {
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`DELETE /v1/properties/{p}/payment-methods/{method_id}` — remove a saved\nmethod (holder-scoped: only the owner's rows are deletable).",
+        "operationId": "delete_payment_method",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/pci-compliance": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "verify_pci_compliance",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/post/emails": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "send_sentin8_post_email",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_profile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/merge": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "merge_profiles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/{profile_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_profile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/{profile_id}/loyalty": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "link_loyalty",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/{profile_id}/loyalty-number": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number`\nSets the loyalty member number on a guest profile. Called by Hotel8:Loyalty\nvia `pms-client` over its HTTP API (DESIGN.md §1 — no cross-service SQL).",
+        "operationId": "set_loyalty_number",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/{profile_id}/preferences": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_preferences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "add_preference",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/{profile_id}/preferences/{pref_id}": {
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "remove_preference",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/profiles/{profile_id}/stay-history": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_stay_history",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/promo/validate": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "validate_promo_code",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/rate-limits": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_rate_limit_config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/rate-plans": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/rate-plans`",
+        "operationId": "list_rate_plans",
+        "responses": {
+          "200": {
+            "description": "List of rate plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RatePlan"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{property_id}/rate-plans`",
+        "operationId": "create_rate_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatePlanCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Rate plan created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatePlan"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/properties/{property_id}/rate-plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_rate_plan",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_rate_schedules",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_rate_schedule",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules/{schedule_id}": {
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "delete_rate_schedule",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/channel-performance": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_channel_performance_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/guest-history": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_guest_history_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/housekeeping-analysis": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_housekeeping_analysis_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/market-segment": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_market_segment_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/occupancy": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/reports/occupancy`",
+        "operationId": "get_occupancy_report",
+        "responses": {
+          "200": {
+            "description": "Occupancy report",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/properties/{property_id}/reports/rate-analysis": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_rate_analysis_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/reservation-summary": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_reservation_summary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/revenue": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_revenue_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reports/sales-catering": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_sales_catering_report",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/reservations`",
+        "operationId": "search_reservations",
+        "responses": {
+          "200": {
+            "description": "List of reservations",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{property_id}/reservations`",
+        "operationId": "create_reservation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation created",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`GET /v1/properties/{property_id}/reservations/{res_id}`",
+        "operationId": "get_reservation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pms:admin scope"
+          },
+          "404": {
+            "description": "Reservation not found"
+          }
+        },
+        "security": [
+          {
+            "pms:admin": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`PUT /v1/properties/{property_id}/reservations/{res_id}` — pre-arrival edit.",
+        "description": "Edits dates, occupancy, room type, rate plan, and special requests.\nTerminal-status reservations (`CANCELLED`, `CHECKED_OUT`, `NO_SHOW`) refuse\nedits with 409 — the state machine forbids mutating history.",
+        "operationId": "update_reservation",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/boarding-pass": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "Boarding pass — the check-in artifact the kiosk completion step renders\n(room, dates, guest, key count). Computed from live rows, never stored.",
+        "operationId": "get_boarding_pass",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/cancel": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "cancel_reservation",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/charges": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "post_charge",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/charges/dispute": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "dispute_charge",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/check-in": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "check_in",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "revert_check_in",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/check-out": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "check_out",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/folio": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_folio",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/folio/generate": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "generate_folio",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/instructions": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "fetch_instructions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/ledger-post": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "post_to_ledger",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/link-guest": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{p}/reservations/{res_id}/link-guest` — bind the\nsigned-in session's guest profile to a booking made anonymously in eBooking.",
+        "description": "The binding surface is the profile chain: the anonymous booking carries the\nbooker profile row; signing in resolves the (possibly different) profile\nthe session subject owns. Linking merges the booker profile INTO the\nsession's profile via the same merge path ePMS staff use, so folio/keys/\nrequests all follow the stay.",
+        "operationId": "link_reservation_guest",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/messages": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_messages",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "send_message",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/payments": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "post_payment",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/payments-process": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "process_payment_via_payments",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/pre-check-in": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "pre_check_in",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/service-requests": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "get_service_requests",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_service_request",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/split": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "split_reservation",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/reservations/{res_id}/upsell": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "upsell_reservation",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/room-types": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_room_types",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_room_type",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/room-types/{type_id}": {
+      "delete": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "delete_room_type",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/rooms": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_rooms",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "create_room",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/rooms/{room_number}": {
+      "put": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "update_room_status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/transaction-codes": {
+      "get": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "list_transaction_codes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/vouchers/redeem": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "redeem_voucher",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/vouchers/validate": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "operationId": "validate_voucher",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/properties/{property_id}/walk-in": {
+      "post": {
+        "tags": [
+          "pms"
+        ],
+        "summary": "`POST /v1/properties/{property_id}/walk-in` — kiosk express booking.",
+        "description": "Creates a `CONFIRMED` reservation from an available room type + guest name\n(`source_code = 'WALKIN'`, `channel_code = 'KIOSK'`). The kiosk then\ncheck-ins via the normal route. Refuses when the room type has no\navailability for the requested window.",
+        "operationId": "create_walk_in",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RatePlan": {
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "rate_plan_code",
+          "rate_plan_name",
+          "currency_code",
+          "is_active",
+          "is_negotiated",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "cancellation_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency_code": {
+            "type": "string"
+          },
+          "deposit_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guarantee_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_negotiated": {
+            "type": "boolean"
+          },
+          "market_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rate_category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_plan_code": {
+            "type": "string"
+          },
+          "rate_plan_name": {
+            "type": "string"
+          },
+          "source_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RatePlanCreate": {
+        "type": "object",
+        "required": [
+          "rate_plan_code",
+          "rate_plan_name",
+          "currency_code"
+        ],
+        "properties": {
+          "cancellation_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency_code": {
+            "type": "string"
+          },
+          "deposit_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guarantee_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "is_negotiated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "market_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_advance_booking": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_los": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "rate_category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_plan_code": {
+            "type": "string"
+          },
+          "rate_plan_name": {
+            "type": "string"
+          },
+          "source_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "security": [],
+  "tags": [
+    {
+      "name": "pms",
+      "description": "Hotel8:PMS admin API — reservations, rates, blocks, events, frontdesk, housekeeping, reports"
+    }
+  ]
+}

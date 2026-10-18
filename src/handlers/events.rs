@@ -11,6 +11,17 @@ use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
 
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/events",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 pub async fn create_event(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -62,6 +73,17 @@ pub async fn create_event(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/events",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 pub async fn list_events(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,

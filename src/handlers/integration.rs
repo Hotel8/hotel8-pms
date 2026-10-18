@@ -18,6 +18,17 @@ use axum::Json;
 use sqlx::Row;
 
 // ── Payments integration — tokenization and payment processing ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/payments-process",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn process_payment_via_payments(
     State(state): State<AppState>,
@@ -83,6 +94,17 @@ pub async fn process_payment_via_payments(
 }
 
 // ── Ledger integration — double-entry financial postings ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/ledger-post",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn post_to_ledger(
     State(state): State<AppState>,
@@ -191,6 +213,17 @@ pub async fn post_to_ledger(
 }
 
 // ── Buck integration — property images, room photos, document storage ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/images",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn upload_property_image(
     State(state): State<AppState>,
@@ -267,6 +300,17 @@ pub async fn upload_property_image(
 }
 
 // ── Post integration — confirmation emails, folio emails ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/notifications",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn send_notification(
     State(state): State<AppState>,
@@ -330,6 +374,17 @@ pub async fn send_notification(
 // ── Rate limiting — enforced via BFF, not PMS itself ──
 // This is a configuration task on BFF, not an PMS handler.
 // We expose a health endpoint that reports the current rate limit config.
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/rate-limits",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_rate_limit_config(
     State(_state): State<AppState>,
@@ -355,6 +410,17 @@ pub async fn get_rate_limit_config(
 }
 
 // ── Audit events for sensitive operations ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/audit-log",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_audit_log(
     State(state): State<AppState>,
@@ -404,6 +470,17 @@ pub async fn get_audit_log(
 }
 
 // ── PCI compliance verification ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/pci-compliance",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn verify_pci_compliance(
     State(_state): State<AppState>,
@@ -431,6 +508,17 @@ pub async fn verify_pci_compliance(
 }
 
 // ── Flow integration — complex multi-step workflows (group booking, event planning) ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/flow/workflows",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn start_sentin8_flow_workflow(
     State(state): State<AppState>,
@@ -462,6 +550,17 @@ pub async fn start_sentin8_flow_workflow(
 }
 
 // ── Func integration — custom rate calculation rules, inventory optimization WASM modules ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/func/invoke",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn invoke_sentin8_func_module(
     State(state): State<AppState>,
@@ -494,6 +593,17 @@ pub async fn invoke_sentin8_func_module(
 }
 
 // ── Post integration — confirmation emails, folio emails, guest communications ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/post/emails",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn send_sentin8_post_email(
     State(state): State<AppState>,

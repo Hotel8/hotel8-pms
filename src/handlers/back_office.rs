@@ -15,7 +15,7 @@ use sqlx::Row;
 /// `GET /v1/properties/{property_id}/reports/occupancy`
 #[utoipa::path(
     get,
-    path = "/v1/admin/reports",
+    path = "/v1/properties/{property_id}/reports/occupancy",
     responses(
         (status = 200, description = "Occupancy report", body = serde_json::Value),
         (status = 403, description = "Missing pms:admin scope"),
@@ -68,6 +68,17 @@ pub async fn get_occupancy_report(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/revenue",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_revenue_report(
     State(state): State<AppState>,
@@ -113,6 +124,17 @@ pub async fn get_revenue_report(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/config",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_property_config(
     State(state): State<AppState>,
@@ -150,6 +172,17 @@ pub async fn get_property_config(
 }
 
 // ── -End of Day workflow ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/end-of-day",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn end_of_day(
     State(state): State<AppState>,
@@ -258,6 +291,17 @@ pub async fn end_of_day(
 }
 
 // ── Reservation Summary report ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/reservation-summary",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_reservation_summary(
     State(state): State<AppState>,
@@ -301,6 +345,17 @@ pub async fn get_reservation_summary(
 }
 
 // ── -Async API Pattern ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/async",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_async_job(
     State(state): State<AppState>,
@@ -342,6 +397,17 @@ pub async fn create_async_job(
         job_id.to_string(),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/async/status/{job_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_async_status(
     State(state): State<AppState>,
@@ -374,6 +440,17 @@ pub async fn get_async_status(
         "completed_at": row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/async/result/{job_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_async_result(
     State(state): State<AppState>,
@@ -412,6 +489,17 @@ pub async fn get_async_result(
 }
 
 // ── Async module-specific operations (Inventory, Cashiering, CRM, PAR) ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/async/inventory",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_inventory_async(
     State(state): State<AppState>,
@@ -426,6 +514,17 @@ pub async fn create_inventory_async(
         .to_string();
     create_module_async_job(&state, &headers, property_id, "INVENTORY", &operation, req).await
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/async/cashiering",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_cashiering_async(
     State(state): State<AppState>,
@@ -440,6 +539,17 @@ pub async fn create_cashiering_async(
         .to_string();
     create_module_async_job(&state, &headers, property_id, "CASHIERING", &operation, req).await
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/async/crm",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_crm_async(
     State(state): State<AppState>,
@@ -454,6 +564,17 @@ pub async fn create_crm_async(
         .to_string();
     create_module_async_job(&state, &headers, property_id, "CRM", &operation, req).await
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/async/par",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_par_async(
     State(state): State<AppState>,
@@ -507,6 +628,17 @@ async fn create_module_async_job(
 }
 
 // ── External System configuration for async result delivery ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/external-systems",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_external_system_config(
     State(state): State<AppState>,
@@ -535,6 +667,17 @@ pub async fn get_external_system_config(
         ],
     })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/external-systems",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_external_system_config(
     State(state): State<AppState>,
@@ -566,6 +709,17 @@ pub async fn update_external_system_config(
 }
 
 // ── Property module configuration ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/modules",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_property_modules(
     State(state): State<AppState>,
@@ -601,6 +755,17 @@ pub async fn get_property_modules(
         ]
     })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/modules",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_property_modules(
     State(state): State<AppState>,
@@ -633,6 +798,17 @@ pub async fn update_property_modules(
 }
 
 // ── EOD exception handling and retry ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/end-of-day/exceptions",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_eod_exceptions(
     State(state): State<AppState>,
@@ -677,6 +853,17 @@ pub async fn get_eod_exceptions(
         serde_json::json!({ "property_id": property_id, "exceptions": items }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/end-of-day/{eod_id}/retry",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn retry_eod(
     State(state): State<AppState>,
@@ -767,6 +954,17 @@ pub async fn retry_eod(
 }
 
 // ── -Additional report subject areas ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/guest-history",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_guest_history_report(
     State(state): State<AppState>,
@@ -822,6 +1020,17 @@ pub async fn get_guest_history_report(
         serde_json::json!({ "property_id": property_id, "guests": items }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/housekeeping-analysis",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_housekeeping_analysis_report(
     State(state): State<AppState>,
@@ -874,6 +1083,17 @@ pub async fn get_housekeeping_analysis_report(
         serde_json::json!({ "property_id": property_id, "tasks": items }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/sales-catering",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_sales_catering_report(
     State(state): State<AppState>,
@@ -927,6 +1147,17 @@ pub async fn get_sales_catering_report(
         serde_json::json!({ "property_id": property_id, "blocks": items }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/channel-performance",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_channel_performance_report(
     State(state): State<AppState>,
@@ -980,6 +1211,17 @@ pub async fn get_channel_performance_report(
         serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "channels": items }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/market-segment",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_market_segment_report(
     State(state): State<AppState>,
@@ -1033,6 +1275,17 @@ pub async fn get_market_segment_report(
         serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "segments": items }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reports/rate-analysis",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_rate_analysis_report(
     State(state): State<AppState>,

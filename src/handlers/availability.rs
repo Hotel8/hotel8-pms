@@ -60,6 +60,17 @@ pub fn restrictions_allow(
     }
     true
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/availability",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn search_availability(
     State(state): State<AppState>,
@@ -183,6 +194,17 @@ pub async fn search_availability(
 }
 
 // ── Company-scoped rate-mix (corporate availability) ───────────────────────
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/corporate-availability",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `POST /v1/properties/{property_id}/corporate-availability` — availability
 /// for a corporate session (company_profile_id). Rate-mix policy: when the
@@ -370,6 +392,17 @@ pub async fn get_packages(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": packages })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/guarantee-policies",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_guarantee_policies(
     State(_state): State<AppState>,
@@ -393,6 +426,17 @@ pub async fn get_guarantee_policies(
 }
 
 // ── Multi-property availability search (org-wide) ──
+#[utoipa::path(
+    get,
+    path = "/v1/availability",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn search_availability_org(
     State(state): State<AppState>,

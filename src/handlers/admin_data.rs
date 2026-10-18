@@ -20,6 +20,17 @@ use sqlx::Row;
 
 use crate::auth;
 use crate::handlers::AppState;
+#[utoipa::path(
+    get,
+    path = "/v1/admin/{property_id}/{resource}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms-admin",
+)]
 
 /// `GET /v1/admin/{resource}` — admin data for the RFW tables. Each resource
 /// maps to its Shield `read` action; unknown resources 404.
@@ -208,6 +219,17 @@ pub async fn get_admin_data(
         _ => Err(super::err_not_found(&format!("Unknown admin resource: {resource}"))),
     }
 }
+#[utoipa::path(
+    post,
+    path = "/v1/admin/{property_id}/{resource}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms-admin",
+)]
 
 /// `POST /v1/admin/{resource}` — form-submit aliases. The RFW renderer only
 /// POSTs; each alias calls the SAME public domain handler (shared business

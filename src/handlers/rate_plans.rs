@@ -15,7 +15,7 @@ use sqlx::Row;
 /// `POST /v1/properties/{property_id}/rate-plans`
 #[utoipa::path(
     post,
-    path = "/v1/admin/rates",
+    path = "/v1/properties/{property_id}/rate-plans",
     request_body = RatePlanCreate,
     responses(
         (status = 200, description = "Rate plan created", body = RatePlan),
@@ -82,7 +82,7 @@ pub async fn create_rate_plan(
 /// `GET /v1/properties/{property_id}/rate-plans`
 #[utoipa::path(
     get,
-    path = "/v1/admin/rates",
+    path = "/v1/properties/{property_id}/rate-plans",
     responses(
         (status = 200, description = "List of rate plans", body = [RatePlan]),
         (status = 403, description = "Missing pms:admin scope"),
@@ -115,6 +115,17 @@ pub async fn list_rate_plans(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(rows.iter().map(row_to_rate_plan).collect()))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/rate-plans/{plan_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_rate_plan(
     State(state): State<AppState>,
@@ -172,6 +183,17 @@ fn row_to_rate_plan(row: &sqlx::postgres::PgRow) -> RatePlan {
 }
 
 // ── -Rate Schedule CRUD ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_rate_schedule(
     State(state): State<AppState>,
@@ -240,6 +262,17 @@ pub async fn create_rate_schedule(
         serde_json::json!({ "id": id, "rate_plan_id": plan_id, "room_type_id": room_type_id, "start_date": row.get::<chrono::NaiveDate, _>("start_date"), "end_date": row.get::<chrono::NaiveDate, _>("end_date"), "rate_amount": row.get::<String, _>("rate_amount") }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_rate_schedules(
     State(state): State<AppState>,
@@ -278,6 +311,17 @@ pub async fn list_rate_schedules(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules/{schedule_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn delete_rate_schedule(
     State(state): State<AppState>,
@@ -305,6 +349,17 @@ pub async fn delete_rate_schedule(
 }
 
 // ── Package CRUD ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/packages",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_package(
     State(state): State<AppState>,
@@ -355,6 +410,17 @@ pub async fn create_package(
         serde_json::json!({ "id": id, "package_code": row.get::<String, _>("package_code"), "package_name": row.get::<String, _>("package_name"), "quantity": row.get::<i32, _>("quantity"), "price": row.get::<String, _>("price"), "per_stay": row.get::<bool, _>("per_stay") }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/packages",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_packages(
     State(state): State<AppState>,
@@ -384,6 +450,17 @@ pub async fn list_packages(
 }
 
 // ── Negotiated Rate Plans (corporate, government, AAA) with company profile linking ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/negotiated-rate-plans",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_negotiated_rate_plans(
     State(state): State<AppState>,
@@ -431,6 +508,17 @@ pub async fn list_negotiated_rate_plans(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/negotiated-rate-plans/{rate_plan_id}/link-company",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn link_negotiated_rate_to_company(
     State(state): State<AppState>,
@@ -487,6 +575,17 @@ pub async fn link_negotiated_rate_to_company(
 }
 
 // ── Promo Code validation ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/promo/validate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn validate_promo_code(
     State(state): State<AppState>,

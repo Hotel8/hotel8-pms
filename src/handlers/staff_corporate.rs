@@ -21,6 +21,17 @@ use crate::auth;
 use crate::handlers::AppState;
 
 // ── Reservation edit (PUT) ──────────────────────────────────────────────────
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/reservations/{res_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `PUT /v1/properties/{property_id}/reservations/{res_id}` — pre-arrival edit.
 ///
@@ -127,6 +138,17 @@ pub async fn update_reservation(
 }
 
 // ── Walk-in booking (kiosk express booking) ─────────────────────────────────
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/walk-in",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `POST /v1/properties/{property_id}/walk-in` — kiosk express booking.
 ///
@@ -262,6 +284,17 @@ pub async fn create_walk_in(
 }
 
 // ── Corporate payment methods (credit approval) ─────────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/companies/{profile_id}/payment-methods",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `GET /v1/properties/{property_id}/companies/{profile_id}/payment-methods` —
 /// credit-approved methods for a company profile. Checkout surfaces the
@@ -304,6 +337,17 @@ pub async fn list_company_payment_methods(
         serde_json::json!({ "items": rows.iter().map(company_method_json).collect::<Vec<_>>() }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/companies/{profile_id}/payment-methods",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `POST .../companies/{profile_id}/payment-methods` — hotel sales registers a
 /// method or approves a pending one (admin surface).
@@ -397,6 +441,17 @@ fn company_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
 }
 
 // ── Company user bindings (multi-company travelers) ─────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/companies/{profile_id}/users",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `GET .../companies/{profile_id}/users` — the company's traveler roster.
 pub async fn list_company_users(
@@ -446,6 +501,17 @@ pub async fn list_company_users(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/companies/{profile_id}/users",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `POST .../companies/{profile_id}/users` — bind a traveler to the company.
 pub async fn create_company_user(
@@ -520,6 +586,17 @@ pub async fn create_company_user(
         "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/companies/by-traveler/{profile_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `GET /v1/properties/{property_id}/companies/by-traveler/{profile_id}` — the
 /// companies a traveler is bound to (multi-company session switcher).
@@ -567,6 +644,17 @@ pub async fn list_companies_for_traveler(
 }
 
 // ── Kiosk terminal config ───────────────────────────────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/kiosk-config",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `GET .../kiosk-config` — the terminal's mode menu source of truth (eKiosk
 /// bootstrap read). Defaults are materialized on first read so the terminal
@@ -591,6 +679,17 @@ pub async fn get_kiosk_config(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(kiosk_config_json(&row)))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/kiosk-config",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 /// `PUT .../kiosk-config` — admin RFW settings mutation (`hotel8:pms:admin`).
 pub async fn update_kiosk_config(
@@ -677,6 +776,17 @@ pub async fn update_kiosk_config(
 }
 
 // ── SSO-free first-admin provisioning (ECRP-3) ─────────────────────────────
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/companies/{profile_id}/admin-provisioning",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms-admin",
+)]
 
 /// `GET .../companies/{profile_id}/admin-provisioning` — whether the company
 /// still needs its first corporate admin provisioned (no IdP + no bound
@@ -724,6 +834,17 @@ pub async fn get_company_admin_provisioning(
         "admin_count": admin_count,
     })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/companies/{profile_id}/admin-provisioning",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms-admin",
+)]
 
 /// `PUT .../companies/{profile_id}/admin-provisioning` — provision the first
 /// corporate admin: binds the traveler (created on the fly when needed) as

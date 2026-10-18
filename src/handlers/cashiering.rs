@@ -10,6 +10,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/folio",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_folio(
     State(state): State<AppState>,
@@ -74,6 +85,17 @@ pub async fn get_folio(
         })).collect::<Vec<_>>(),
     })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/charges",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn post_charge(
     State(state): State<AppState>,
@@ -146,6 +168,17 @@ pub async fn post_charge(
         "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
     })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/payments",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn post_payment(
     State(state): State<AppState>,
@@ -214,6 +247,17 @@ pub async fn post_payment(
 }
 
 // ── Folio Generation ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/folio/generate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn generate_folio(
     State(state): State<AppState>,
@@ -250,6 +294,17 @@ pub async fn generate_folio(
 }
 
 // ── Folio dispute handling ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/charges/dispute",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn dispute_charge(
     State(state): State<AppState>,
@@ -294,6 +349,17 @@ pub async fn dispute_charge(
 }
 
 // ── Transaction Code management ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/transaction-codes",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_transaction_codes(
     State(state): State<AppState>,
@@ -337,6 +403,17 @@ pub async fn list_transaction_codes(
 }
 
 // ── -Gift Voucher validation and redemption ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/vouchers/validate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn validate_voucher(
     State(state): State<AppState>,
@@ -376,6 +453,17 @@ pub async fn validate_voucher(
         )),
     }
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/vouchers/redeem",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn redeem_voucher(
     State(state): State<AppState>,

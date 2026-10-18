@@ -11,6 +11,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/check-in",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn check_in(
     State(state): State<AppState>,
@@ -91,6 +102,17 @@ pub async fn check_in(
         serde_json::json!({ "reservation_id": res_id, "status": "CHECKED_IN", "room_number": room_number }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/check-out",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn check_out(
     State(state): State<AppState>,
@@ -185,7 +207,7 @@ pub async fn check_out(
 /// `GET /v1/properties/{property_id}/in-house`
 #[utoipa::path(
     get,
-    path = "/v1/admin/frontdesk",
+    path = "/v1/properties/{property_id}/in-house",
     responses(
         (status = 200, description = "List of in-house guests", body = serde_json::Value),
         (status = 403, description = "Missing pms:admin scope"),
@@ -235,6 +257,17 @@ pub async fn list_in_house(
 }
 
 // ── Pre-Register ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/pre-check-in",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn pre_check_in(
     State(state): State<AppState>,
@@ -274,6 +307,17 @@ pub async fn pre_check_in(
 }
 
 // ── Check-In revert ──
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/check-in",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn revert_check_in(
     State(state): State<AppState>,
@@ -327,6 +371,17 @@ pub async fn revert_check_in(
 }
 
 // ── Guest Messaging ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/messages",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_messages(
     State(state): State<AppState>,
@@ -355,6 +410,17 @@ pub async fn get_messages(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/messages",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn send_message(
     State(state): State<AppState>,
@@ -390,6 +456,17 @@ pub async fn send_message(
 }
 
 // ── Service Requests ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/service-requests",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_service_requests(
     State(state): State<AppState>,
@@ -418,6 +495,17 @@ pub async fn get_service_requests(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/reservations/{res_id}/service-requests",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_service_request(
     State(state): State<AppState>,

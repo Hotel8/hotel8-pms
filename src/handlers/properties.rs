@@ -10,6 +10,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pms::contracts::{Property, PropertyCreate};
+#[utoipa::path(
+    post,
+    path = "/v1/properties",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_property(
     State(state): State<AppState>,
@@ -56,6 +67,17 @@ pub async fn create_property(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row.to_contract()))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_properties(
     State(state): State<AppState>,
@@ -80,6 +102,17 @@ pub async fn list_properties(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(rows.into_iter().map(|r| r.to_contract()).collect()))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_property(
     State(state): State<AppState>,
@@ -108,6 +141,17 @@ pub async fn get_property(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row.to_contract()))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_property(
     State(state): State<AppState>,
@@ -154,6 +198,17 @@ pub async fn update_property(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(row.to_contract()))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/properties/{property_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn delete_property(
     State(state): State<AppState>,

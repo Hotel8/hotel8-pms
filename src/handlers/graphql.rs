@@ -9,6 +9,17 @@ use crate::handlers::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
+#[utoipa::path(
+    post,
+    path = "/v1/graphql",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms-graphql",
+)]
 
 pub async fn graphql(
     State(state): State<AppState>,

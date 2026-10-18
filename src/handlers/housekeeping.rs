@@ -14,7 +14,7 @@ use sqlx::Row;
 /// `GET /v1/properties/{property_id}/housekeeping`
 #[utoipa::path(
     get,
-    path = "/v1/admin/housekeeping",
+    path = "/v1/properties/{property_id}/housekeeping",
     responses(
         (status = 200, description = "List of housekeeping tasks", body = serde_json::Value),
         (status = 403, description = "Missing pms:admin scope"),
@@ -60,6 +60,17 @@ pub async fn list_housekeeping_tasks(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/housekeeping/{room_number}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_housekeeping_status(
     State(state): State<AppState>,
@@ -133,6 +144,17 @@ pub async fn update_housekeeping_status(
 }
 
 // ── -Housekeeping Tasks ──
+#[utoipa::path(
+    post,
+    path = "/v1/properties/{property_id}/housekeeping/tasks",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn create_task(
     State(state): State<AppState>,
@@ -172,6 +194,17 @@ pub async fn create_task(
         serde_json::json!({ "id": id, "property_id": property_id, "room_number": row.get::<Option<String>, _>("room_number"), "task_type": row.get::<String, _>("task_type"), "status": status, "priority": row.get::<String, _>("priority"), "assigned_to": row.get::<Option<String>, _>("assigned_to"), "notes": row.get::<Option<String>, _>("notes"), "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at") }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/housekeeping/tasks",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn list_tasks(
     State(state): State<AppState>,
@@ -207,6 +240,17 @@ pub async fn list_tasks(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/properties/{property_id}/housekeeping/tasks/{task_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn update_task(
     State(state): State<AppState>,
@@ -247,6 +291,17 @@ pub async fn update_task(
 }
 
 // ── Housekeeping Forecast ──
+#[utoipa::path(
+    get,
+    path = "/v1/properties/{property_id}/housekeeping/forecast",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pms",
+)]
 
 pub async fn get_forecast(
     State(state): State<AppState>,
