@@ -3,17 +3,17 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! PMS status state machines — pure, DB-free transition rules.
+//! PMS status state machines - pure, DB-free transition rules.
 //!
 //! Extracts the status guards that were previously hand-written SQL fragment
 //! comparisons (`WHERE ... status NOT IN (...)`, `status != "CONFIRMED"`) into
 //! testable pure functions. The rules are normative in
 //! `hotel8/design/sentin8-hotel8-rust-test-strategy.md` §3 and mirror the
-//! state diagrams in `sentin8-hotel8-pms-technical-design.md` §4.3–4.6.
+//! state diagrams in `sentin8-hotel8-pms-technical-design.md` §4.3-4.6.
 //!
 //! Every variant's `label()` equals the corresponding
 //! `CREATE TYPE hotel8.pms_* AS ENUM (...)` value in `services/pms/sql/init.sql`
-//! — handlers persist via `status::text` comparisons, so a label drift would
+//! - handlers persist via `status::text` comparisons, so a label drift would
 //! silently break RLS-guarded queries.
 //!
 //! Handlers use `from_label` + `can_transition_to` instead of
@@ -26,7 +26,7 @@ use std::fmt;
 pub trait PmsState: Copy + PartialEq + fmt::Debug {
     /// Human name used in handler error messages (e.g. `"Reservation is {label}, cannot check in"`).
     fn label(&self) -> &'static str;
-    /// Parse a DB `status::text` value. Unknown labels are a bug — the SQL
+    /// Parse a DB `status::text` value. Unknown labels are a bug - the SQL
     /// schema is the authority; tests pin every variant.
     fn from_label(s: &str) -> Self;
     /// The design-doc transition rules (see test-strategy §3 matrices).
@@ -35,7 +35,7 @@ pub trait PmsState: Copy + PartialEq + fmt::Debug {
 
 // ── Reservation ─────────────────────────────────────────────────────────────
 
-/// `hotel8.pms_res_status` — reservation lifecycle (PMS design §4.4).
+/// `hotel8.pms_res_status` - reservation lifecycle (PMS design §4.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReservationState {
     Confirmed,
@@ -92,7 +92,7 @@ impl fmt::Display for ReservationState {
 
 // ── Folio ───────────────────────────────────────────────────────────────────
 
-/// `hotel8.pms_folio_status` — cashiering folio (PMS design §4.5).
+/// `hotel8.pms_folio_status` - cashiering folio (PMS design §4.5).
 /// The DB enum currently has only OPEN/CLOSED; the §4.5 diagram's
 /// ACTIVE/SETTLED intermediates are future work.
 ///
@@ -135,7 +135,7 @@ impl fmt::Display for FolioState {
 
 // ── Block ───────────────────────────────────────────────────────────────────
 
-/// `hotel8.pms_block_status` — group block lifecycle (PMS design §4.6 and the
+/// `hotel8.pms_block_status` - group block lifecycle (PMS design §4.6 and the
 /// next-status table in `handlers/blocks.rs::get_block_next_statuses`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlockState {
@@ -188,7 +188,7 @@ impl fmt::Display for BlockState {
 
 // ── Event ───────────────────────────────────────────────────────────────────
 
-/// `hotel8.pms_event_status` — banquet/catering event lifecycle.
+/// `hotel8.pms_event_status` - banquet/catering event lifecycle.
 ///
 /// Events currently have no status-update endpoint; this machine is the
 /// documented target for the planned event-status endpoint (test-strategy §3.4).
@@ -251,7 +251,7 @@ impl fmt::Display for EventState {
 mod tests {
     use super::*;
 
-    /// Every variant's label is the exact DB enum value — a drift here breaks
+    /// Every variant's label is the exact DB enum value - a drift here breaks
     /// every `status::text`-comparing query. Pinned per test-strategy §2.2.
     #[test]
     fn labels_match_db_enums() {

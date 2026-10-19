@@ -20,11 +20,11 @@ pub struct H8pmsConfig {
     pub sentin8_post_url: String,
     pub sentin8_cron_url: String,
     pub sentin8_func_url: String,
-    /// Shared Auth client — constructed once so discovery + JWKS caches
+    /// Shared Auth client - constructed once so discovery + JWKS caches
     /// are reused across every request (5-min TTL each). Cloning is cheap (Arc).
     pub sentin8_auth_client: AuthClient,
     /// Certificate-presenting transport for the `pms-payments` workload
-    /// (Bill8:Payments charges + token consume — CERTFREE-4V, no M2M
+    /// (Bill8:Payments charges + token consume - CERTFREE-4V, no M2M
     /// token exists).
     pub payments_http: Option<reqwest::Client>,
     /// Certificate-presenting transport for the `pms-ledger` workload
@@ -62,7 +62,7 @@ impl H8pmsConfig {
                 .expect("HOTEL8_PMS_PORT must be set by captain")
                 .parse()
                 .expect("HOTEL8_PMS_PORT must be a number"),
-            // DBX (§VDC.3) — the DSN is REQUIRED and must name the vertical
+            // DBX (§VDC.3) - the DSN is REQUIRED and must name the vertical
             // database (hotel8): the shell verifies the service identity's
             // expected database and refuses to boot otherwise. There is no
             // platform-database fallback.

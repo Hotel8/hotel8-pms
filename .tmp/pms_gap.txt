@@ -1,4 +1,4 @@
-##### hotel8/hotel8-pms — code_routes=147 spec_ops=10
+##### hotel8/hotel8-pms - code_routes=147 spec_ops=10
   MISSING FROM SPEC (147):
     DELETE /v1/properties/{property_id}   [handlers::properties::delete_property]
     DELETE /v1/properties/{property_id}/items/{item_id}   [handlers::rooms::delete_item]
@@ -149,13 +149,13 @@
     PUT    /v1/properties/{property_id}/rooms/{room_number}   [handlers::rooms::update_room_status]
   IN SPEC NOT IN CODE (10): [('GET', '/v1/admin/blocks'), ('GET', '/v1/admin/events'), ('GET', '/v1/admin/frontdesk'), ('GET', '/v1/admin/housekeeping'), ('GET', '/v1/admin/rates'), ('GET', '/v1/admin/reports'), ('GET', '/v1/admin/reservations'), ('GET', '/v1/admin/reservations/{id}'), ('POST', '/v1/admin/rates'), ('POST', '/v1/admin/reservations')]
 
-##### hotel8/hotel8-pos — code_routes=72 spec_ops=72
+##### hotel8/hotel8-pos - code_routes=72 spec_ops=72
 
-##### hotel8/hotel8-upsell — code_routes=28 spec_ops=28
+##### hotel8/hotel8-upsell - code_routes=28 spec_ops=28
 
-##### bill8/bill8-billing — code_routes=21 spec_ops=21
+##### bill8/bill8-billing - code_routes=21 spec_ops=21
 
-##### bill8/bill8-ledger — code_routes=18 spec_ops=18
+##### bill8/bill8-ledger - code_routes=18 spec_ops=18
 
-##### bill8/bill8-payments — code_routes=26 spec_ops=26
+##### bill8/bill8-payments - code_routes=26 spec_ops=26
 

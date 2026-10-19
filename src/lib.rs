@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Sentin8 PMS — library re-exports for integration tests.
+//! Sentin8 PMS - library re-exports for integration tests.
 pub mod admin_ui;
 pub mod auth;
 pub mod config;

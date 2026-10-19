@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Front desk handlers — check-in, check-out, in-house guest list.
+//! Front desk handlers - check-in, check-out, in-house guest list.
 use crate::auth;
 use crate::handlers::AppState;
 use crate::state_machine::{PmsState, ReservationState};
@@ -167,7 +167,7 @@ pub async fn check_out(
             .map_err(super::err_db)?;
     }
 
-    // Revoke any active digital keys — a departed stay loses key access
+    // Revoke any active digital keys - a departed stay loses key access
     // (pms DESIGN.md §3 invariant).
     let _ = sqlx::query(
         "UPDATE pms.digital_keys SET status = 'REVOKED', revoked_at = now(), updated_at = now()

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Staff & corporate surface handlers — reservation edit, walk-in booking,
+//! Staff & corporate surface handlers - reservation edit, walk-in booking,
 //! company payment methods (credit approval), company user bindings, and
 //! kiosk terminal config.
 //!
@@ -33,11 +33,11 @@ use crate::handlers::AppState;
     tag = "pms",
 )]
 
-/// `PUT /v1/properties/{property_id}/reservations/{res_id}` — pre-arrival edit.
+/// `PUT /v1/properties/{property_id}/reservations/{res_id}` - pre-arrival edit.
 ///
 /// Edits dates, occupancy, room type, rate plan, and special requests.
 /// Terminal-status reservations (`CANCELLED`, `CHECKED_OUT`, `NO_SHOW`) refuse
-/// edits with 409 — the state machine forbids mutating history.
+/// edits with 409 - the state machine forbids mutating history.
 pub async fn update_reservation(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -150,7 +150,7 @@ pub async fn update_reservation(
     tag = "pms",
 )]
 
-/// `POST /v1/properties/{property_id}/walk-in` — kiosk express booking.
+/// `POST /v1/properties/{property_id}/walk-in` - kiosk express booking.
 ///
 /// Creates a `CONFIRMED` reservation from an available room type + guest name
 /// (`source_code = 'WALKIN'`, `channel_code = 'KIOSK'`). The kiosk then
@@ -199,7 +199,7 @@ pub async fn create_walk_in(
         ));
     }
 
-    // Availability gate — never oversell (DESIGN.md §8).
+    // Availability gate - never oversell (DESIGN.md §8).
     let rt = sqlx::query(
         "SELECT rt.room_type_code,
                 COALESCE((SELECT MIN(i.available_rooms)::int FROM pms.inventory i
@@ -296,7 +296,7 @@ pub async fn create_walk_in(
     tag = "pms",
 )]
 
-/// `GET /v1/properties/{property_id}/companies/{profile_id}/payment-methods` —
+/// `GET /v1/properties/{property_id}/companies/{profile_id}/payment-methods` -
 /// credit-approved methods for a company profile. Checkout surfaces the
 /// `POSTPAY`/`BILL_TO_COMPANY` rows; everything else is bookkeeping.
 pub async fn list_company_payment_methods(
@@ -349,7 +349,7 @@ pub async fn list_company_payment_methods(
     tag = "pms",
 )]
 
-/// `POST .../companies/{profile_id}/payment-methods` — hotel sales registers a
+/// `POST .../companies/{profile_id}/payment-methods` - hotel sales registers a
 /// method or approves a pending one (admin surface).
 pub async fn create_company_payment_method(
     State(state): State<AppState>,
@@ -453,7 +453,7 @@ fn company_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
     tag = "pms",
 )]
 
-/// `GET .../companies/{profile_id}/users` — the company's traveler roster.
+/// `GET .../companies/{profile_id}/users` - the company's traveler roster.
 pub async fn list_company_users(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -513,7 +513,7 @@ pub async fn list_company_users(
     tag = "pms",
 )]
 
-/// `POST .../companies/{profile_id}/users` — bind a traveler to the company.
+/// `POST .../companies/{profile_id}/users` - bind a traveler to the company.
 pub async fn create_company_user(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -598,7 +598,7 @@ pub async fn create_company_user(
     tag = "pms",
 )]
 
-/// `GET /v1/properties/{property_id}/companies/by-traveler/{profile_id}` — the
+/// `GET /v1/properties/{property_id}/companies/by-traveler/{profile_id}` - the
 /// companies a traveler is bound to (multi-company session switcher).
 pub async fn list_companies_for_traveler(
     State(state): State<AppState>,
@@ -656,7 +656,7 @@ pub async fn list_companies_for_traveler(
     tag = "pms",
 )]
 
-/// `GET .../kiosk-config` — the terminal's mode menu source of truth (eKiosk
+/// `GET .../kiosk-config` - the terminal's mode menu source of truth (eKiosk
 /// bootstrap read). Defaults are materialized on first read so the terminal
 /// always gets a row.
 pub async fn get_kiosk_config(
@@ -691,7 +691,7 @@ pub async fn get_kiosk_config(
     tag = "pms",
 )]
 
-/// `PUT .../kiosk-config` — admin RFW settings mutation (`hotel8:pms:admin`).
+/// `PUT .../kiosk-config` - admin RFW settings mutation (`hotel8:pms:admin`).
 pub async fn update_kiosk_config(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -788,7 +788,7 @@ pub async fn update_kiosk_config(
     tag = "pms-admin",
 )]
 
-/// `GET .../companies/{profile_id}/admin-provisioning` — whether the company
+/// `GET .../companies/{profile_id}/admin-provisioning` - whether the company
 /// still needs its first corporate admin provisioned (no IdP + no bound
 /// ADMIN user). The corporate login page reads this after company-code
 /// verification to decide between the normal login and the provisioning flow.
@@ -846,9 +846,9 @@ pub async fn get_company_admin_provisioning(
     tag = "pms-admin",
 )]
 
-/// `PUT .../companies/{profile_id}/admin-provisioning` — provision the first
+/// `PUT .../companies/{profile_id}/admin-provisioning` - provision the first
 /// corporate admin: binds the traveler (created on the fly when needed) as
-/// `ADMIN` and stamps `preferences.provisioned_admin_at`. Idempotent —
+/// `ADMIN` and stamps `preferences.provisioned_admin_at`. Idempotent -
 /// re-provisioning an already-admin company is a no-op returning the
 /// existing state with `already_provisioned: true`.
 pub async fn provision_company_admin(

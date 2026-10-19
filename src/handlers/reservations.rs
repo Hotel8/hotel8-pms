@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Reservation handlers — CRUD + search.
+//! Reservation handlers - CRUD + search.
 use crate::auth;
 use crate::handlers::AppState;
 use axum::extract::{Path, State};

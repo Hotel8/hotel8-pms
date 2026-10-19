@@ -1,10 +1,10 @@
-# Hotel8:PMS — Detailed Design Document
+# Hotel8:PMS - Detailed Design Document
 
 ## 1. Scope & Context
 
 **Owned by PMS:**
 
-- Database `hotel8`, schema `pms` — 35 tables (properties, room types, rooms,
+- Database `hotel8`, schema `pms` - 35 tables (properties, room types, rooms,
   rate plans, rate schedules, inventory, packages, guest profiles,
   reservations, folios, folio charges, folio payments, blocks, events, LOV,
   housekeeping tasks, function spaces, event resources, transaction codes,
@@ -12,7 +12,7 @@
   preferences, EOD log, reservation comments, items, LOV defaults, digital
   keys, feedback, kiosk config, company payment methods, company users,
   + producer tables `pms.outbox` / `pms.audit_journal`).
-- Event family `pms` (stream family derived from the service role) — the
+- Event family `pms` (stream family derived from the service role) - the
   reservation/inventory/housekeeping domain events consumed by POS, upsell,
   distrib, meta, loyalty.
 - RFW admin surface `/v1/admin/ui/*` + `/v1/admin/*` (13 pages incl. the
@@ -24,7 +24,7 @@
 |---|---|
 | Payment acceptance (charges, refunds, disputes, tokens) | Bill8:Payments |
 | Double-entry movements (room-charge settlement) | Bill8:Ledger (balance-transactions) |
-| Folio-settlement account provisioning | Bill8:Ledger — lazy-ensured from PMS (`ensure_settlement_balances`), idempotent per env |
+| Folio-settlement account provisioning | Bill8:Ledger - lazy-ensured from PMS (`ensure_settlement_balances`), idempotent per env |
 | Object storage (property images) | Sentin8:Storage |
 | Transactional email delivery | Sentin8:Post |
 | Identity, JWKS, authorization decision | Sentin8:Auth + Shield |
@@ -109,7 +109,7 @@ graph LR
     ST --> ROUTER[router]
 ```
 
-### Request lifecycle — public domain read
+### Request lifecycle - public domain read
 
 ```mermaid
 sequenceDiagram
@@ -127,7 +127,7 @@ sequenceDiagram
     P-->>C: 200 JSON (or RLS-filtered empty)
 ```
 
-### Request lifecycle — mutation with event + audit
+### Request lifecycle - mutation with event + audit
 
 ```mermaid
 sequenceDiagram
@@ -147,7 +147,7 @@ sequenceDiagram
     P->>DB: INSERT pms.audit_journal
     P->>DB: COMMIT
     P-->>C: 201 reservation
-    Note over DB,BUS: post-commit — shell relay drains pms.outbox
+    Note over DB,BUS: post-commit - shell relay drains pms.outbox
     BUS->>BUS: produce (idempotency_key = outbox row id)
     alt relay failure (Bus down)
         DB->>DB: row stays unrelayed, 5s safety poll retries
@@ -197,7 +197,7 @@ erDiagram
 ### Guest-app surfaces (self-service)
 
 The guest-facing apps (eGuest, eKiosk) consume PMS through the BFF using
-narrow, self-service shapes — the same tables above, exposed with
+narrow, self-service shapes - the same tables above, exposed with
 guest-filterable routes and one new table per physical key model:
 
 | Surface | Route | Notes |
@@ -206,7 +206,7 @@ guest-filterable routes and one new table per physical key model:
 | Key issuance | `POST /v1/properties/{property_id}/digital-keys` | rows in `pms.digital_keys` (reservation-scoped), status `INACTIVE` |
 | Key lifecycle | `POST .../digital-keys/{id}/activate` / `.../deactivate`, `GET .../digital-keys?reservation_id=` | state machine: `INACTIVE → ACTIVE → {REVOKED, EXPIRED}` |
 | Folio by room | `GET /v1/properties/{property_id}/folios?room_number=` | the check-out wizard's settlement view (opens folio of the in-house stay in that room) |
-| Boarding pass / key slip | `GET /v1/properties/{property_id}/reservations/{id}/boarding-pass` | computed view: room, dates, guest, key count — rendered by the kiosk completion step |
+| Boarding pass / key slip | `GET /v1/properties/{property_id}/reservations/{id}/boarding-pass` | computed view: room, dates, guest, key count - rendered by the kiosk completion step |
 | Stay feedback | `POST /v1/properties/{property_id}/feedback`, `GET .../feedback?reservation_id=` | one rating per reservation; rows in `pms.feedback` |
 
 ```mermaid
@@ -231,7 +231,7 @@ stateDiagram-v2
 Invariants: keys exist only for `CHECKED_IN` reservations; a key is
 deactivated automatically at check-out (the check-out handler revokes active
 keys for the reservation); `pms.feedback` accepts one row per
-`(reservation_id)` — re-submission updates the rating, never duplicates.
+`(reservation_id)` - re-submission updates the rating, never duplicates.
 
 ### Staff & corporate surfaces
 
@@ -239,11 +239,11 @@ keys for the reservation); `pms.feedback` accepts one row per
 |---|---|---|
 | Reservation edit | `PUT /v1/properties/{property_id}/reservations/{id}` | ePMS edit flow: dates, occupancy, room type/rate plan; refused with 409 for `CANCELLED`/`CHECKED_OUT`/`NO_SHOW` |
 | Walk-in booking | `POST /v1/properties/{property_id}/walk-in` | kiosk express-booking: creates a `CONFIRMED` reservation (source `WALKIN`, channel `KIOSK`) from an available room type + guest name; the kiosk then check-ins via the normal route |
-| Corporate credit methods | `GET/POST/DELETE /v1/properties/{property_id}/companies/{profile_id}/payment-methods` | rows in `pms.company_payment_methods` — bill8 token references only; `approval` ∈ {`PENDING`, `POSTPAY`, `BILL_TO_COMPANY`, `REJECTED`}; eCorpCheckout surfaces the `POSTPAY`/`BILL_TO_COMPANY` set |
-| Company user binding | `GET/POST /v1/properties/{property_id}/companies/{profile_id}/users` | rows in `pms.company_users`; one traveler may belong to many companies — the session binds ONE active company per call (no org-wide bypass) |
-| Kiosk terminal config | `GET/PUT /v1/properties/{property_id}/kiosk-config` | one row per property (unique) — enabled modes (`CHECK_IN`,`CHECK_OUT`,`COLLECT_KEY`,`WALK_IN`), add-on package codes, lockdown flag, max key count; eKiosk reads it at bootstrap and gates its mode menu; admin RFW page edits it |
+| Corporate credit methods | `GET/POST/DELETE /v1/properties/{property_id}/companies/{profile_id}/payment-methods` | rows in `pms.company_payment_methods` - bill8 token references only; `approval` ∈ {`PENDING`, `POSTPAY`, `BILL_TO_COMPANY`, `REJECTED`}; eCorpCheckout surfaces the `POSTPAY`/`BILL_TO_COMPANY` set |
+| Company user binding | `GET/POST /v1/properties/{property_id}/companies/{profile_id}/users` | rows in `pms.company_users`; one traveler may belong to many companies - the session binds ONE active company per call (no org-wide bypass) |
+| Kiosk terminal config | `GET/PUT /v1/properties/{property_id}/kiosk-config` | one row per property (unique) - enabled modes (`CHECK_IN`,`CHECK_OUT`,`COLLECT_KEY`,`WALK_IN`), add-on package codes, lockdown flag, max key count; eKiosk reads it at bootstrap and gates its mode menu; admin RFW page edits it |
 | Corporate admin provisioning | `GET/PUT /v1/properties/{property_id}/companies/{profile_id}/admin-provisioning` | SSO-free first-admin onboarding: `requires_provisioning` = no IdP (`preferences.sso_provider`) AND no bound ADMIN; `PUT` idempotently binds the resolved-or-created traveler as `ADMIN` and stamps `preferences.provisioned_admin_at` (event `hotel8:pms:company:admin_provisioned`) |
-| Corporate availability (rate-mix) | `POST /v1/properties/{property_id}/corporate-availability` | rate-mix policy: with a `company_profile_id` in the request, ONLY negotiated plans linked to that company (`preferences.negotiated_rate_plan_ids`) are returned — public plans are withheld (never leak, never fallback); same availability math as the public search |
+| Corporate availability (rate-mix) | `POST /v1/properties/{property_id}/corporate-availability` | rate-mix policy: with a `company_profile_id` in the request, ONLY negotiated plans linked to that company (`preferences.negotiated_rate_plan_ids`) are returned - public plans are withheld (never leak, never fallback); same availability math as the public search |
 
 ### Domain state machines
 
@@ -278,7 +278,7 @@ stateDiagram-v2
 **Public** (bearer + Shield gate, all emit domain events through
 `pms.outbox`):
 
-- Properties/rooms/types/rate-plans/items CRUD —
+- Properties/rooms/types/rate-plans/items CRUD -
   `hotel8:pms:{resource}:{read|write}` scope mirror set.
 - Availability search (`/v1/properties/{id}/availability`, org-wide
   `/v1/availability`).
@@ -288,7 +288,7 @@ stateDiagram-v2
   (`GET/PUT .../kiosk-config`).
 - Corporate surfaces: company payment methods (credit approval) + company
   user bindings under `/v1/properties/{id}/companies/{profile_id}/...`.
-- Housekeeping tasks (`PUT .../{room_number}` — `hk_status` transitions).
+- Housekeeping tasks (`PUT .../{room_number}` - `hk_status` transitions).
 - Cashiering: folio get, charge post, payment post, folio generation.
 - Blocks CRUD + status transitions (`block_status`).
 - Events (banquet) CRUD + resource assignment.
@@ -301,31 +301,31 @@ stateDiagram-v2
   `/v1/properties/{id}/digital-keys`), folios-by-room
   (`GET .../folios?room_number=`), boarding pass, stay feedback.
 - **Authorization mapping (kiosk/guest payments):** bill8 exposes
-  authorization as a `payment-intent` with manual confirm — the kiosk
+  authorization as a `payment-intent` with manual confirm - the kiosk
   "pre-authorization" is `POST /v1/payment-intents` +
   `POST /v1/payment-intents/{id}/confirm` on bill8:payments (scopes
   `bill8:payments:intents:write`), and capture is `POST /v1/charges`
   (`bill8:payments:charges:write`). There is no separate
   `/v1/authorizations` endpoint.
 
-**Admin/RFU**: `/v1/admin/ui/{page}` (14 RFW pages — domain pages + settings
+**Admin/RFU**: `/v1/admin/ui/{page}` (14 RFW pages - domain pages + settings
 + kiosk-config + the corporate-accounts page), `/v1/admin/{resource}`
 data endpoints for the domain pages (reservations, frontdesk, housekeeping,
 rates, blocks, events, profiles, reports, settings, companies,
-company_users, negotiated_rates — RLS-filtered JSON the tables render) +
+company_users, negotiated_rates - RLS-filtered JSON the tables render) +
 form-submit aliases (`POST/PUT/DELETE /v1/admin/{resource}/...` reusing the
-domain handlers — incl. `company_payment_methods`/`company_users`/`rate_links`
+domain handlers - incl. `company_payment_methods`/`company_users`/`rate_links`
 for the corporate page),
 incl. the shared Shield policy-admin trio
 (`/v1/admin/policy-sets|relations|attributes`). Page definitions gate on
 `hotel8:pms:admin`; data reads gate on the resource's `read` scope; submit
-aliases gate on the resource's `write` scope (Shield step 5 — the scope-mirror
+aliases gate on the resource's `write` scope (Shield step 5 - the scope-mirror
 set carries every action).
 
 **Health**: `/v1/health` custom payload (drain gauge shared with the request
 counter).
 
-### Cross-service data access — decision order (membus → bus → owner API)
+### Cross-service data access - decision order (membus → bus → owner API)
 
 PMS is the vertical's primary *producer*: reactions to reservations,
 inventory, folios, and kiosk config are consumed by POS/upsell/loyalty/
@@ -333,17 +333,17 @@ distrib/meta directly off the `pms` stream (their consumer groups), so PMS
 gains no internal fan-out API. Outbound reads PMS itself makes follow the
 platform decision order (architecture principles §4.7):
 
-1. **MemBus state refresh** — none today: nothing PMS consumes repeats fast
+1. **MemBus state refresh** - none today: nothing PMS consumes repeats fast
    enough to need newest-wins ephemeral state.
-2. **Sentin8:Bus events** — PMS consumes platform env-init events (e.g.
+2. **Sentin8:Bus events** - PMS consumes platform env-init events (e.g.
    `sentin8:sys:service:updated` family reactions land in its consumer
    plumbing) rather than polling owner APIs.
-3. **Owner HTTP API** — the residual path for synchronous read-your-writes
+3. **Owner HTTP API** - the residual path for synchronous read-your-writes
    only (e.g. the integration lane's payments/ledger/post calls). PMS never
-   reads another service's schema — no cross-schema GRANT, no FDW/dblink
+   reads another service's schema - no cross-schema GRANT, no FDW/dblink
    (§6.6a).
 
-### Event flow — outbox → Bus → trigger
+### Event flow - outbox → Bus → trigger
 
 ```mermaid
 sequenceDiagram
@@ -365,24 +365,24 @@ sequenceDiagram
 
 ## 5. Cross-Cutting Concerns
 
-- **Authentication** — every handler calls `auth::verify_token` (shell-provided
+- **Authentication** - every handler calls `auth::verify_token` (shell-provided
   JWKS verification); M2M tokens accepted alongside user tokens; no bearer →
   401 before any domain logic.
-- **Tenant resolution + RLS** — ingress `X-Sentin8-*` headers are the only
+- **Tenant resolution + RLS** - ingress `X-Sentin8-*` headers are the only
   tenant source; `set_tenant_context` runs on the pooled connection inside the
   transaction; explicit `env_id = $n` clauses are defense-in-depth alongside
   the RLS policies.
-- **Idempotency & exactly-once** — outbox `relayed` state + Bus dedupe on row
+- **Idempotency & exactly-once** - outbox `relayed` state + Bus dedupe on row
   id; consumers dedupe by `idempotency_key`; posting batches carry a unique
   idempotency key column.
-- **Rate limiting** — enforced at the BFF/ingress layer, not in PMS; PMS
+- **Rate limiting** - enforced at the BFF/ingress layer, not in PMS; PMS
   exposes its intended limits on the health endpoint for operational parity.
-- **Audit journaling** — same-transaction `pms.audit_journal` rows for all
+- **Audit journaling** - same-transaction `pms.audit_journal` rows for all
   mutating handlers; shell pusher ships to Sys with fail-open retry.
-- **Graceful drain** — health endpoint shares the request counter's in-flight
+- **Graceful drain** - health endpoint shares the request counter's in-flight
   gauge; upgrade-instance polls `/v1/health` until in-flight drains before
   stopping the old process.
-- **TLS posture** — PQ-X25519MLKEM768 listener via `sentin8-tls`; no
+- **TLS posture** - PQ-X25519MLKEM768 listener via `sentin8-tls`; no
   `danger_accept_invalid_certs`; service never touches hostname resolution
   (embedded DB-free HostContextResolver).
 
@@ -396,7 +396,7 @@ flowchart TD
     D -->|no| E[continue retrying]
     D -->|yes| F[row remains for manual replay / DLQ surface]
     G[Sys unreachable at audit push] --> H[journal rows stay pushed=false]
-    H --> I[next pass retries from journal — audit never lost]
+    H --> I[next pass retries from journal - audit never lost]
     J[Post send 5xx] --> K[handler surfaces BAD_GATEWAY 502]
     K --> L[audit row records the attempt client-side? no event claimed sent]
     M[PG pool timeout] --> N[acquire 8s budget then 500 via err_db]
@@ -404,18 +404,18 @@ flowchart TD
 
 - Relay and journal-pusher are **fail-open**: an outage only disables the
   background task, traffic continues serving.
-- Mid-transaction crash is recovered by PostgreSQL atomicity — partial
+- Mid-transaction crash is recovered by PostgreSQL atomicity - partial
   writes never commit (outbox row and domain row share the commit).
 - A workload-certificate mint failure at startup keeps the bus client
-  retrying in its boot loop (2s cadence) — never crash-looping the service.
+  retrying in its boot loop (2s cadence) - never crash-looping the service.
 
 ## 7. Concurrency & Performance Model
 
 - Single tokio multi-thread runtime; axum worker fan-out; no dedicated
   background tasks other than the shell-owned relay/pusher/policy reload.
 - Pool: `pg_pool::connect` cap 3 (`SENTIN8_PG_POOL_MAX` override), 8s acquire
-  budget — sized for the shared-cluster `max_connections` budget.
-- Hot paths: availability search and reservation create — availability is a
+  budget - sized for the shared-cluster `max_connections` budget.
+- Hot paths: availability search and reservation create - availability is a
   pure filter over `pms_rooms.status` and `pms_inventory`; no N+1: joins in
   SQL, not per-row client aggregation.
 - Locking: row-level locks from single DML; the state machines run pre-SQL so
@@ -451,8 +451,8 @@ graph LR
 
 ```mermaid
 graph TD
-    U[Unit — pure state machines + availability math, DB-free] --> I[Integration — DB-backed suites against the hotel8 DB]
-    I --> E2E[E2E UI — browser-only, BFF proxy API]
+    U[Unit - pure state machines + availability math, DB-free] --> I[Integration - DB-backed suites against the hotel8 DB]
+    I --> E2E[E2E UI - browser-only, BFF proxy API]
 ```
 
 - **Unit**: contracts serde round-trips; `ReservationState`/`FolioState`/
@@ -460,21 +460,21 @@ graph TD
   restriction gating.
 - **Integration (DB-backed)**: create-operation handlers (property, room
   type, room, rate plan, rate schedule, profile, reservation, block, event)
-  round-trip against the live `hotel8` database — typed date/enum/numeric
+  round-trip against the live `hotel8` database - typed date/enum/numeric
   binds verified on the real schema, plus the reservation edit and walk-in
   handlers. Skipped (not failed) when `HOTEL8_PMS_DATABASE_URL` is unset, so
   DB-free CI still runs.
-- **E2E (UI-only)**: through Dash/BFF proxy — admin RFW pages, reservation
+- **E2E (UI-only)**: through Dash/BFF proxy - admin RFW pages, reservation
   lifecycle in the browser. No direct SQL in test setup.
 - Deliberately NOT tested here: platform token issuance, Shield engine
-  internals, TLS posture — covered by the platform test strategy.
+  internals, TLS posture - covered by the platform test strategy.
 
 ## 10. Open Questions
 
 - Multi-currency folio support (denomination split from property currency).
 - Per-room-class overbooking caps beyond the pure sell-limit filter.
 - Yield-management pricing beyond the restriction gates.
-- Offline order-capture for POS terminals rides the POS offline-sync lane —
+- Offline order-capture for POS terminals rides the POS offline-sync lane -
   PMS room-charge posting during terminal offline is deferred until that
   platform pattern lands.
 

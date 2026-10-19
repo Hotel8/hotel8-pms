@@ -1,4 +1,4 @@
-# Hotel8:PMS — Business Requirements & Functionality
+# Hotel8:PMS - Business Requirements & Functionality
 
 > Audience: product owners, business analysts, and anyone evaluating what
 > Hotel8:PMS **does for the business**. For architecture read `README.md`;
@@ -29,7 +29,7 @@
 | Reporting | Occupancy, revenue, and operations reports for the admin surface |
 | Admin console | 14 RFW pages (incl. the kiosk terminal config) + live data/submit endpoints behind every domain page, incl. the shared policy admin triplet |
 | Corporate accounts | Credit-approved payment methods (post-pay / bill-to-company), traveler company bindings, SSO-free first-admin provisioning, and company-scoped negotiated availability for eCorpBooking; hotel sales manages all of it on the Corporate admin page |
-| Walk-in booking | Express booking from the kiosk terminal — availability-gated, never oversells |
+| Walk-in booking | Express booking from the kiosk terminal - availability-gated, never oversells |
 | Guest communications | Confirmation/folio emails via Sentin8:Post |
 | Image management | Property/room images via Sentin8:Storage |
 | Platform execution | Payment charges (Bill8:Payments), double-entry movements (Bill8:Ledger), module execution hooks |
@@ -59,7 +59,7 @@
 | Housekeeping | Room status drives sellability; pickup status is set only on reservation assignment. |
 | Blocks | Definitive blocks reserve room-type inventory; release makes rooms sellable again. |
 | Events | An event reserves function spaces with resources; lifecycle mirrors reservation discipline. |
-| Night audit | EOD is atomic — folios roll, housekeeping resets, inventory rolls, no-shows apply, and the log records one close per property per business day. |
+| Night audit | EOD is atomic - folios roll, housekeeping resets, inventory rolls, no-shows apply, and the log records one close per property per business day. |
 | Guest profiles | Profiles aggregate stays and preferences; VIP tiers carry service expectations; loyalty linkage is delegated to hotel8:loyalty. |
 
 ## 4. Business Events (Outbound)
@@ -79,7 +79,7 @@ Representative set (full list mirrored in `DESIGN.md` §4):
 | `hotel8:pms:eod:completed` | Night audit closed |
 | `hotel8:pms:notification:sent` / `hotel8:pms:post:email_queued` | Guest communication dispatched |
 
-**Inbound (consumed directly):** none from other hotel8 services today — PMS
+**Inbound (consumed directly):** none from other hotel8 services today - PMS
 is the origin of the reservation/inventory facts the rest of the vertical
 reacts to.
 
@@ -90,13 +90,13 @@ reacts to.
    non-sellable rooms, nor beyond the sell limit.
 3. Folio balances equal charges minus payments at all times; closure requires
    a non-negative remaining balance.
-4. Every state transition passes the server-side state machine — illegal
+4. Every state transition passes the server-side state machine - illegal
    transitions are rejected before persistence.
-5. A business fact change and its event are committed atomically — no event
+5. A business fact change and its event are committed atomically - no event
    is ever lost or orphaned.
 6. Audit history for every mutation persists even during platform outages.
 7. Each property has one EOD closure per business day.
-8. A guest never sees another guest's folio or profile — tenant isolation is
+8. A guest never sees another guest's folio or profile - tenant isolation is
    enforced on every read.
 
 ## 6. Target-User Roles & Use Cases

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "hotel8-pms",
-    "description": "Sentin8 Hotel8:PMS — Property Management System for the hospitality industry.",
+    "description": "Sentin8 Hotel8:PMS - Property Management System for the hospitality industry.",
     "license": {
       "name": "MIT OR Apache-2.0",
       "identifier": "MIT OR Apache-2.0"
@@ -40,7 +40,7 @@
         "tags": [
           "pms-admin"
         ],
-        "summary": "`GET /v1/admin/{resource}` — admin data for the RFW tables. Each resource\nmaps to its Shield `read` action; unknown resources 404.",
+        "summary": "`GET /v1/admin/{resource}` - admin data for the RFW tables. Each resource\nmaps to its Shield `read` action; unknown resources 404.",
         "operationId": "get_admin_data",
         "responses": {
           "200": {
@@ -64,7 +64,7 @@
         "tags": [
           "pms-admin"
         ],
-        "summary": "`POST /v1/admin/{resource}` — form-submit aliases. The RFW renderer only\nPOSTs; each alias calls the SAME public domain handler (shared business\nrules), so the admin surface can create/update/delete exactly what staff\ncan.",
+        "summary": "`POST /v1/admin/{resource}` - form-submit aliases. The RFW renderer only\nPOSTs; each alias calls the SAME public domain handler (shared business\nrules), so the admin surface can create/update/delete exactly what staff\ncan.",
         "operationId": "submit_admin_data",
         "responses": {
           "200": {
@@ -634,7 +634,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`GET /v1/properties/{property_id}/companies/by-traveler/{profile_id}` — the\ncompanies a traveler is bound to (multi-company session switcher).",
+        "summary": "`GET /v1/properties/{property_id}/companies/by-traveler/{profile_id}` - the\ncompanies a traveler is bound to (multi-company session switcher).",
         "operationId": "list_companies_for_traveler",
         "responses": {
           "200": {
@@ -660,7 +660,7 @@
         "tags": [
           "pms-admin"
         ],
-        "summary": "`GET .../companies/{profile_id}/admin-provisioning` — whether the company\nstill needs its first corporate admin provisioned (no IdP + no bound\nADMIN user). The corporate login page reads this after company-code\nverification to decide between the normal login and the provisioning flow.",
+        "summary": "`GET .../companies/{profile_id}/admin-provisioning` - whether the company\nstill needs its first corporate admin provisioned (no IdP + no bound\nADMIN user). The corporate login page reads this after company-code\nverification to decide between the normal login and the provisioning flow.",
         "operationId": "get_company_admin_provisioning",
         "responses": {
           "200": {
@@ -684,7 +684,7 @@
         "tags": [
           "pms-admin"
         ],
-        "summary": "`PUT .../companies/{profile_id}/admin-provisioning` — provision the first\ncorporate admin: binds the traveler (created on the fly when needed) as\n`ADMIN` and stamps `preferences.provisioned_admin_at`. Idempotent —\nre-provisioning an already-admin company is a no-op returning the\nexisting state with `already_provisioned: true`.",
+        "summary": "`PUT .../companies/{profile_id}/admin-provisioning` - provision the first\ncorporate admin: binds the traveler (created on the fly when needed) as\n`ADMIN` and stamps `preferences.provisioned_admin_at`. Idempotent -\nre-provisioning an already-admin company is a no-op returning the\nexisting state with `already_provisioned: true`.",
         "operationId": "provision_company_admin",
         "responses": {
           "200": {
@@ -710,7 +710,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`GET /v1/properties/{property_id}/companies/{profile_id}/payment-methods` —\ncredit-approved methods for a company profile. Checkout surfaces the\n`POSTPAY`/`BILL_TO_COMPANY` rows; everything else is bookkeeping.",
+        "summary": "`GET /v1/properties/{property_id}/companies/{profile_id}/payment-methods` -\ncredit-approved methods for a company profile. Checkout surfaces the\n`POSTPAY`/`BILL_TO_COMPANY` rows; everything else is bookkeeping.",
         "operationId": "list_company_payment_methods",
         "responses": {
           "200": {
@@ -734,7 +734,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`POST .../companies/{profile_id}/payment-methods` — hotel sales registers a\nmethod or approves a pending one (admin surface).",
+        "summary": "`POST .../companies/{profile_id}/payment-methods` - hotel sales registers a\nmethod or approves a pending one (admin surface).",
         "operationId": "create_company_payment_method",
         "responses": {
           "200": {
@@ -760,7 +760,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`GET .../companies/{profile_id}/users` — the company's traveler roster.",
+        "summary": "`GET .../companies/{profile_id}/users` - the company's traveler roster.",
         "operationId": "list_company_users",
         "responses": {
           "200": {
@@ -784,7 +784,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`POST .../companies/{profile_id}/users` — bind a traveler to the company.",
+        "summary": "`POST .../companies/{profile_id}/users` - bind a traveler to the company.",
         "operationId": "create_company_user",
         "responses": {
           "200": {
@@ -835,7 +835,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`POST /v1/properties/{property_id}/corporate-availability` — availability\nfor a corporate session (company_profile_id). Rate-mix policy: when the\nrequest carries a company context, ONLY the negotiated rate plans linked\nto that company (via `preferences.negotiated_rate_plan_ids`) are returned;\npublic plans are withheld so negotiated rates never leak to non-members\nand members never book public rates against their contract. Companies\nwith no linked plans get an explicit empty result, not a public fallback.",
+        "summary": "`POST /v1/properties/{property_id}/corporate-availability` - availability\nfor a corporate session (company_profile_id). Rate-mix policy: when the\nrequest carries a company context, ONLY the negotiated rate plans linked\nto that company (via `preferences.negotiated_rate_plan_ids`) are returned;\npublic plans are withheld so negotiated rates never leak to non-members\nand members never book public rates against their contract. Companies\nwith no linked plans get an explicit empty result, not a public fallback.",
         "operationId": "corporate_availability",
         "responses": {
           "200": {
@@ -1206,7 +1206,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "Submit (or update) stay feedback — one row per reservation.",
+        "summary": "Submit (or update) stay feedback - one row per reservation.",
         "operationId": "submit_feedback",
         "responses": {
           "200": {
@@ -1257,7 +1257,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "Open folio for the in-house stay in a room — the kiosk/eGuest check-out\nview over the same folio rows the per-reservation route returns.",
+        "summary": "Open folio for the in-house stay in a room - the kiosk/eGuest check-out\nview over the same folio rows the per-reservation route returns.",
         "operationId": "get_folio_by_room",
         "responses": {
           "200": {
@@ -1706,7 +1706,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`GET .../kiosk-config` — the terminal's mode menu source of truth (eKiosk\nbootstrap read). Defaults are materialized on first read so the terminal\nalways gets a row.",
+        "summary": "`GET .../kiosk-config` - the terminal's mode menu source of truth (eKiosk\nbootstrap read). Defaults are materialized on first read so the terminal\nalways gets a row.",
         "operationId": "get_kiosk_config",
         "responses": {
           "200": {
@@ -1730,7 +1730,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`PUT .../kiosk-config` — admin RFW settings mutation (`hotel8:pms:admin`).",
+        "summary": "`PUT .../kiosk-config` - admin RFW settings mutation (`hotel8:pms:admin`).",
         "operationId": "update_kiosk_config",
         "responses": {
           "200": {
@@ -2000,7 +2000,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`GET /v1/properties/{p}/payment-methods` — the signed-in guest's saved\npayment methods, resolved by the session subject (holder-scoped). Rows\ncarry bill8 token references only — never PAN or token secrets (DESIGN.md\n§3 secret-reference rule).",
+        "summary": "`GET /v1/properties/{p}/payment-methods` - the signed-in guest's saved\npayment methods, resolved by the session subject (holder-scoped). Rows\ncarry bill8 token references only - never PAN or token secrets (DESIGN.md\n§3 secret-reference rule).",
         "operationId": "list_payment_methods",
         "responses": {
           "200": {
@@ -2024,7 +2024,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`POST /v1/properties/{p}/payment-methods` — save a tokenized method\n(bill8 already holds the instrument; PMS stores the reference).",
+        "summary": "`POST /v1/properties/{p}/payment-methods` - save a tokenized method\n(bill8 already holds the instrument; PMS stores the reference).",
         "operationId": "create_payment_method",
         "responses": {
           "200": {
@@ -2050,7 +2050,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`DELETE /v1/properties/{p}/payment-methods/{method_id}` — remove a saved\nmethod (holder-scoped: only the owner's rows are deletable).",
+        "summary": "`DELETE /v1/properties/{p}/payment-methods/{method_id}` - remove a saved\nmethod (holder-scoped: only the owner's rows are deletable).",
         "operationId": "delete_payment_method",
         "responses": {
           "200": {
@@ -2249,7 +2249,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number`\nSets the loyalty member number on a guest profile. Called by Hotel8:Loyalty\nvia `pms-client` over its HTTP API (DESIGN.md §1 — no cross-service SQL).",
+        "summary": "`PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number`\nSets the loyalty member number on a guest profile. Called by Hotel8:Loyalty\nvia `pms-client` over its HTTP API (DESIGN.md §1 - no cross-service SQL).",
         "operationId": "set_loyalty_number",
         "responses": {
           "200": {
@@ -2917,8 +2917,8 @@
         "tags": [
           "pms"
         ],
-        "summary": "`PUT /v1/properties/{property_id}/reservations/{res_id}` — pre-arrival edit.",
-        "description": "Edits dates, occupancy, room type, rate plan, and special requests.\nTerminal-status reservations (`CANCELLED`, `CHECKED_OUT`, `NO_SHOW`) refuse\nedits with 409 — the state machine forbids mutating history.",
+        "summary": "`PUT /v1/properties/{property_id}/reservations/{res_id}` - pre-arrival edit.",
+        "description": "Edits dates, occupancy, room type, rate plan, and special requests.\nTerminal-status reservations (`CANCELLED`, `CHECKED_OUT`, `NO_SHOW`) refuse\nedits with 409 - the state machine forbids mutating history.",
         "operationId": "update_reservation",
         "responses": {
           "200": {
@@ -2944,7 +2944,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "Boarding pass — the check-in artifact the kiosk completion step renders\n(room, dates, guest, key count). Computed from live rows, never stored.",
+        "summary": "Boarding pass - the check-in artifact the kiosk completion step renders\n(room, dates, guest, key count). Computed from live rows, never stored.",
         "operationId": "get_boarding_pass",
         "responses": {
           "200": {
@@ -3218,7 +3218,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`POST /v1/properties/{p}/reservations/{res_id}/link-guest` — bind the\nsigned-in session's guest profile to a booking made anonymously in eBooking.",
+        "summary": "`POST /v1/properties/{p}/reservations/{res_id}/link-guest` - bind the\nsigned-in session's guest profile to a booking made anonymously in eBooking.",
         "description": "The binding surface is the profile chain: the anonymous booking carries the\nbooker profile row; signing in resolves the (possibly different) profile\nthe session subject owns. Linking merges the booker profile INTO the\nsession's profile via the same merge path ePMS staff use, so folio/keys/\nrequests all follow the stay.",
         "operationId": "link_reservation_guest",
         "responses": {
@@ -3687,7 +3687,7 @@
         "tags": [
           "pms"
         ],
-        "summary": "`POST /v1/properties/{property_id}/walk-in` — kiosk express booking.",
+        "summary": "`POST /v1/properties/{property_id}/walk-in` - kiosk express booking.",
         "description": "Creates a `CONFIRMED` reservation from an available room type + guest name\n(`source_code = 'WALKIN'`, `channel_code = 'KIOSK'`). The kiosk then\ncheck-ins via the normal route. Refuses when the room type has no\navailability for the requested window.",
         "operationId": "create_walk_in",
         "responses": {
@@ -3948,7 +3948,7 @@
   "tags": [
     {
       "name": "pms",
-      "description": "Hotel8:PMS admin API — reservations, rates, blocks, events, frontdesk, housekeeping, reports"
+      "description": "Hotel8:PMS admin API - reservations, rates, blocks, events, frontdesk, housekeeping, reports"
     }
   ]
 }

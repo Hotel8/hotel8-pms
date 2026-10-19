@@ -10,7 +10,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Hotel8/hotel8-pms"
 rust-version = "1.85"
-description = "Sentin8 Hotel8:PMS — Property Management System for the hospitality industry."
+description = "Sentin8 Hotel8:PMS - Property Management System for the hospitality industry."
 
 [[bin]]
 name = "hotel8-pms"

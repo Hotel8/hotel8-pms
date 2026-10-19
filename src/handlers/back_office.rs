@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Back office handlers — reporting and configuration.
+//! Back office handlers - reporting and configuration.
 use crate::auth;
 use crate::event_emit::{emit_on_pool, emit_tx};
 use crate::handlers::AppState;
@@ -206,7 +206,7 @@ pub async fn end_of_day(
     let eod_id: uuid::Uuid = eod_log.get("id");
     let mut steps: Vec<serde_json::Value> = Vec::new();
 
-    // Step 1 — Pre-EOD checks
+    // Step 1 - Pre-EOD checks
     sqlx::query("UPDATE pms.eod_log SET step = 'PRE_EOD_CHECKS' WHERE id = $1")
         .bind(eod_id)
         .execute(&mut *conn)
@@ -217,7 +217,7 @@ pub async fn end_of_day(
     let unbalanced_count: i32 = unbalanced.get("cnt");
     steps.push(serde_json::json!({ "step": "pre_eod_checks", "status": "passed", "unbalanced_folios": unbalanced_count }));
 
-    // Step 2 — Post room charges for in-house guests
+    // Step 2 - Post room charges for in-house guests
     sqlx::query("UPDATE pms.eod_log SET step = 'POST_ROOM_CHARGES' WHERE id = $1")
         .bind(eod_id)
         .execute(&mut *conn)
@@ -239,7 +239,7 @@ pub async fn end_of_day(
     let _room_charges_posted = room_charge_str;
     steps.push(serde_json::json!({ "step": "post_room_charges", "status": "completed", "charges_posted": posted.as_ref().map(|r| r.len()).unwrap_or(0) }));
 
-    // Step 3 — Reconcile folios
+    // Step 3 - Reconcile folios
     sqlx::query("UPDATE pms.eod_log SET step = 'RECONCILE_FOLIOS' WHERE id = $1")
         .bind(eod_id)
         .execute(&mut *conn)
@@ -247,7 +247,7 @@ pub async fn end_of_day(
         .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "reconcile_folios", "status": "completed" }));
 
-    // Step 4 — Process credit card batch (via Payments) — placeholder
+    // Step 4 - Process credit card batch (via Payments) - placeholder
     sqlx::query("UPDATE pms.eod_log SET step = 'CC_BATCH_SETTLEMENT' WHERE id = $1")
         .bind(eod_id)
         .execute(&mut *conn)
@@ -255,7 +255,7 @@ pub async fn end_of_day(
         .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "cc_batch_settlement", "status": "completed", "note": "Payments integration pending" }));
 
-    // Step 5 — Roll business date forward
+    // Step 5 - Roll business date forward
     sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1")
         .bind(eod_id)
         .execute(&mut *conn)
@@ -263,7 +263,7 @@ pub async fn end_of_day(
         .map_err(super::err_db)?;
     steps.push(serde_json::json!({ "step": "roll_business_date", "status": "completed", "new_date": business_date + chrono::Duration::days(1) }));
 
-    // Step 6 — Generate reports
+    // Step 6 - Generate reports
     sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1")
         .bind(eod_id)
         .execute(&mut *conn)
@@ -781,7 +781,7 @@ pub async fn update_property_modules(
         sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
     )
     .await?;
-    // Module config is stored in the property's preferences JSONB — simplified for now
+    // Module config is stored in the property's preferences JSONB - simplified for now
     let env_id = super::resolve_org_env(&a);
     emit_on_pool(
         &state.pool,

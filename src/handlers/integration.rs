@@ -17,7 +17,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
 
-// ── Payments integration — tokenization and payment processing ──
+// ── Payments integration - tokenization and payment processing ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/reservations/{res_id}/payments-process",
@@ -46,7 +46,7 @@ pub async fn process_payment_via_payments(
     .await?;
     let env_id = super::resolve_org_env(&a);
     // B3: the charge is immutable at Bill8:Payments (PCI: no raw card
-    // data passes through PMS — the caller supplies a payment_method_token).
+    // data passes through PMS - the caller supplies a payment_method_token).
     let payment_method_token = req
         .get("payment_method_token")
         .and_then(|v| v.as_str())
@@ -58,7 +58,7 @@ pub async fn process_payment_via_payments(
         .and_then(|v| v.as_str())
         .unwrap_or("USD");
     // CERTFREE-4V: the boot-built `pms-payments` certificate transport
-    // carries the call — no M2M token exists.
+    // carries the call - no M2M token exists.
     let Some(ref payments_http) = state.config.payments_http else {
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
@@ -82,7 +82,7 @@ pub async fn process_payment_via_payments(
     let token = payment_id.to_string();
     emit_on_pool(&state.pool, env_id, "hotel8:pms:payment:processed", serde_json::json!({ "reservation_id": res_id, "amount": amount_f, "currency": currency, "token": &token }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
-    // PCI compliance: never store raw card data — only the Payments token
+    // PCI compliance: never store raw card data - only the Payments token
     Ok(Json(serde_json::json!({
         "reservation_id": res_id,
         "token": token,
@@ -93,7 +93,7 @@ pub async fn process_payment_via_payments(
     })))
 }
 
-// ── Ledger integration — double-entry financial postings ──
+// ── Ledger integration - double-entry financial postings ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/reservations/{res_id}/ledger-post",
@@ -147,7 +147,7 @@ pub async fn post_to_ledger(
     let batch_id = transaction_id.to_string(); // idempotency key basis
                                                // Lazy provisioning: the env's folio-settlement account + available
                                                // balances exist at Bill8:Ledger before the first post (idempotent;
-                                               // replays no-op). The caller's ids (when supplied) win — direct
+                                               // replays no-op). The caller's ids (when supplied) win - direct
                                                // balance references from a prior resolve. CERTFREE-4V: the
                                                // boot-built `pms-ledger` certificate transport carries the calls.
     let Some(ref ledger_http) = state.config.ledger_http else {
@@ -212,7 +212,7 @@ pub async fn post_to_ledger(
     })))
 }
 
-// ── Buck integration — property images, room photos, document storage ──
+// ── Buck integration - property images, room photos, document storage ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/images",
@@ -240,7 +240,7 @@ pub async fn upload_property_image(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    // B3: the image goes to Sentin8:Storage via the shared client — the
+    // B3: the image goes to Sentin8:Storage via the shared client - the
     // request body (base64 content) is decoded and PUT to the env namespace.
     let image_type = req
         .get("image_type")
@@ -299,7 +299,7 @@ pub async fn upload_property_image(
     })))
 }
 
-// ── Post integration — confirmation emails, folio emails ──
+// ── Post integration - confirmation emails, folio emails ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/notifications",
@@ -328,7 +328,7 @@ pub async fn send_notification(
     .await?;
     let env_id = super::resolve_org_env(&a);
     // DBX: the email is SENT through Sentin8:Post's send API
-    // (`POST /v1/send`, `sentin8:post:send` — alignment doc §12). No
+    // (`POST /v1/send`, `sentin8:post:send` - alignment doc §12). No
     // vertical ever writes Post's durability tables: the retired
     // `INSERT INTO sentin8.post_inbox` producer path is replaced by the
     // cross-service call below. The notification-sent event records the
@@ -371,7 +371,7 @@ pub async fn send_notification(
     })))
 }
 
-// ── Rate limiting — enforced via BFF, not PMS itself ──
+// ── Rate limiting - enforced via BFF, not PMS itself ──
 // This is a configuration task on BFF, not an PMS handler.
 // We expose a health endpoint that reports the current rate limit config.
 #[utoipa::path(
@@ -439,7 +439,7 @@ pub async fn get_audit_log(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    // DBX: read-back is served from the LOCAL journal/table only — a vertical
+    // DBX: read-back is served from the LOCAL journal/table only - a vertical
     // never reads the platform database (`sentin8.bus_inbox` is retired;
     // alignment doc §11). The admin audit log reads the pms.audit_journal and
     // the local outbox (both FORCE-RLS env-scoped, same database).
@@ -507,7 +507,7 @@ pub async fn verify_pci_compliance(
     })))
 }
 
-// ── Flow integration — complex multi-step workflows (group booking, event planning) ──
+// ── Flow integration - complex multi-step workflows (group booking, event planning) ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/flow/workflows",
@@ -545,11 +545,11 @@ pub async fn start_sentin8_flow_workflow(
     Ok(Json(serde_json::json!({
         "workflow_id": workflow_id, "property_id": property_id,
         "workflow_type": workflow_type, "status": "STARTED",
-        "message": "Flow workflow initiated — poll status via /v1/async/status/{job_id}",
+        "message": "Flow workflow initiated - poll status via /v1/async/status/{job_id}",
     })))
 }
 
-// ── Func integration — custom rate calculation rules, inventory optimization WASM modules ──
+// ── Func integration - custom rate calculation rules, inventory optimization WASM modules ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/func/invoke",
@@ -592,7 +592,7 @@ pub async fn invoke_sentin8_func_module(
     })))
 }
 
-// ── Post integration — confirmation emails, folio emails, guest communications ──
+// ── Post integration - confirmation emails, folio emails, guest communications ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/post/emails",
@@ -621,7 +621,7 @@ pub async fn send_sentin8_post_email(
     .await?;
     let env_id = super::resolve_org_env(&a);
     // DBX: sent via Post's send API (`sentin8:post:send`); the audit
-    // journal row below rides the same transaction — never a platform-DB
+    // journal row below rides the same transaction - never a platform-DB
     // insert. CERTFREE-4V: the boot-built `pms-post` certificate
     // transport carries the call.
     let email_type = req

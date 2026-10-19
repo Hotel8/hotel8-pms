@@ -8,9 +8,9 @@
 //! Payment acceptance is a Bill8:Payments charge (single-use token
 //! consumed to the method id); settlement is a Bill8:Ledger
 //! balance-transaction. Every call presents the corresponding workload
-//! CERTIFICATE in the TLS handshake (CERTFREE-4V — no M2M token
+//! CERTIFICATE in the TLS handshake (CERTFREE-4V - no M2M token
 //! exists; the transports are built at boot and stored in the config);
-//! failures are returned — never silently swallowed.
+//! failures are returned - never silently swallowed.
 
 /// POST a charge to Bill8:Payments. Returns the immutable charge id.
 ///
@@ -93,7 +93,7 @@ pub async fn post_to_ledger(
 #[derive(Debug, Clone)]
 pub struct LedgerBalance {
     pub id: uuid::Uuid,
-    /// Account the balance belongs to (unused today — kept for
+    /// Account the balance belongs to (unused today - kept for
     /// follow-ups that need the account reference).
     #[allow(dead_code)]
     pub account_id: uuid::Uuid,
@@ -111,7 +111,7 @@ pub struct LedgerBalance {
 /// Ensure the env's folio-settlement account exists at Bill8:Ledger and
 /// return its `available` balance ids keyed by currency (lazy provision:
 /// the first settlement call in an env creates the account; replays are
-/// no-ops — idempotent by the unique `(account, name, currency)` anchor).
+/// no-ops - idempotent by the unique `(account, name, currency)` anchor).
 /// The account is a bill8 `platform`-type account owned by the hotelling
 /// env; money movement stays in Bill8:Ledger (never shadow-written here).
 ///
@@ -126,7 +126,7 @@ pub async fn ensure_settlement_balances(
     let display_name = format!("hotel8-pms-folio:{env_id}");
 
     // Find or create the folio account (list is env-scoped by the
-    // certificate's tenancy — the display name is the idempotency anchor).
+    // certificate's tenancy - the display name is the idempotency anchor).
     let account_id = match list_account_by_name(client, base, &display_name).await? {
         Some(id) => id,
         None => {
@@ -155,7 +155,7 @@ pub async fn ensure_settlement_balances(
 }
 
 /// List the env's ledger accounts and match on display name (the public
-/// read API — never a cross-schema read).
+/// read API - never a cross-schema read).
 async fn list_account_by_name(
     client: &reqwest::Client,
     base: &str,
@@ -278,11 +278,11 @@ pub async fn upload_image(
 }
 
 /// Send a transactional message through Sentin8:Post's send API
-/// (`POST /v1/send` — alignment doc §12). DBX: a vertical never writes
+/// (`POST /v1/send` - alignment doc §12). DBX: a vertical never writes
 /// another service's durability tables; the retired
 /// `INSERT INTO sentin8.post_inbox` producer path is replaced by this
 /// cross-service call (the `pms-post` workload certificate carries
-/// `sentin8:post:send` via the registry map — CERTFREE-4V).
+/// `sentin8:post:send` via the registry map - CERTFREE-4V).
 /// Returns the queued message id.
 ///
 /// `client` is the boot-built `pms-post` certificate transport.

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! PMS HTTP handlers — re-exports from sub-modules.
+//! PMS HTTP handlers - re-exports from sub-modules.
 pub mod admin_data;
 pub mod availability;
 pub mod back_office;
@@ -33,11 +33,11 @@ pub struct AppState {
     pub pool: sqlx::PgPool,
     /// M2M-backed Bus client built at startup via DCR (RFC 7591).
     pub bus_client: sentin8::bus::client::BusClient,
-    /// Shield policy engine: step 5 is the ONLY gate —
-    /// handlers verify the token (steps 1–4) then evaluate a
+    /// Shield policy engine: step 5 is the ONLY gate -
+    /// handlers verify the token (steps 1-4) then evaluate a
     /// `hotel8:pms:<resource>:<action>` target; no JWT scope check remains.
     pub policy: Arc<crate::policy::Engine>,
-    /// Shared Sentin8:Policy admin surface — same engine
+    /// Shared Sentin8:Policy admin surface - same engine
     /// instance the request path evaluates.
     pub admin: sentin8::shield::admin::SharedAdminState,
 }
@@ -50,7 +50,7 @@ pub async fn set_tenant_context(conn: &mut sqlx::PgConnection, env_id: uuid::Uui
         .await;
 }
 
-/// Extended tenant context — admin flags + Auth user UUID for holder-scoped RLS.
+/// Extended tenant context - admin flags + Auth user UUID for holder-scoped RLS.
 pub async fn set_tenant_context_ext(
     conn: &mut sqlx::PgConnection,
     env_id: uuid::Uuid,
@@ -70,7 +70,7 @@ pub async fn set_tenant_context_ext(
 
 pub fn resolve_org_env(auth: &AuthContext) -> uuid::Uuid {
     // env_id is the sole tenant key (globally unique). org_id has been
-    // removed from all hotel8 tables — RLS context is set via env_id alone.
+    // removed from all hotel8 tables - RLS context is set via env_id alone.
     auth.env_id()
 }
 
@@ -79,7 +79,7 @@ pub fn err_db(e: sqlx::Error) -> (axum::http::StatusCode, String) {
 }
 
 /// Map an outbox-emission failure to a 500 (DBX: a silently lost
-/// event is a contract violation — same 500 contract as `err_db`).
+/// event is a contract violation - same 500 contract as `err_db`).
 fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (axum::http::StatusCode, String) {
     (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
 }

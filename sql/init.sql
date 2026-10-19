@@ -3,7 +3,7 @@
 -- SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 -- SPDX-License-Identifier: Apache-2.0
 
--- Hotel8:PMS — Property Management System tables for the hospitality industry.
+-- Hotel8:PMS - Property Management System tables for the hospitality industry.
 --
 -- This migration creates all tables for the Hotel8:PMS service:
 --   packages, guest_profiles, reservations, folios, folio_charges,
@@ -381,7 +381,7 @@ CREATE INDEX IF NOT EXISTS idx_pms_events_property ON pms.events (property_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pms_events_code ON pms.events (property_id, event_code);
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- List of Values (LOV) — reference data per property
+-- List of Values (LOV) - reference data per property
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS pms.lov (
@@ -401,7 +401,7 @@ CREATE INDEX IF NOT EXISTS idx_pms_lov_type ON pms.lov (property_id, lov_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pms_lov_code ON pms.lov (property_id, lov_type, lov_code);
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- RLS Policies — enable RLS on all Hotel8:PMS tables
+-- RLS Policies - enable RLS on all Hotel8:PMS tables
 -- ═══════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE pms.properties ENABLE ROW LEVEL SECURITY;
@@ -497,7 +497,7 @@ DROP POLICY IF EXISTS pms_lov_rls ON pms.lov;
 CREATE POLICY pms_lov_rls ON pms.lov
     USING (property_id IN (SELECT id FROM pms.properties));
 -- ──────────────────────────────────────────────────────────────────────────
--- Local outbox (DBX, architecture-principles §6.7) — producer path:
+-- Local outbox (DBX, architecture-principles §6.7) - producer path:
 -- rows are appended in the SAME transaction as the domain change; the
 -- shell's post-commit relay pushes them to Bus POST /v1/produce
 -- (M2M sentin8:bus:produce, idempotency_key = row id).
@@ -547,7 +547,7 @@ CREATE TRIGGER outbox_notify_trigger
 -- Local audit journal (architecture-principles §6.8): same-transaction
 -- journal rows; the shell's post-commit pusher ships them to Sys
 -- POST /v1/audit (M2M sentin8:sys:audit:write). A Sys outage only delays
--- delivery — rows persist until pushed.
+-- delivery - rows persist until pushed.
 -- Generated from sentin8_audit::audit_journal_sql("pms").
 -- ──────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pms.audit_journal (
@@ -834,7 +834,7 @@ CREATE POLICY pms_items_rls ON pms.items
 -- ═════════════════════════════════════════════════════════════════════════════
 -- From migrations: lov-seed
 -- ═══════════════════════════════════════════════════════════════════════════
--- Hotel8:PMS LOV seed data — standard reference values for all properties.
+-- Hotel8:PMS LOV seed data - standard reference values for all properties.
 -- This provides a base set of LOV entries that properties can customize.
 -- Each property should have these seeded when created. For now, we insert
 -- a template set with property_id = NULL meaning "system defaults".
@@ -922,9 +922,9 @@ ON CONFLICT (lov_type, lov_code) DO NOTHING;
 
 -- Cancellation policies
 INSERT INTO pms.lov_defaults (lov_type, lov_code, lov_value, sort_order) VALUES
-('CANCEL_POLICY', 'FLEX', 'Flexible — free cancellation', 1),
-('CANCEL_POLICY', 'MOD', 'Moderate — 24hr before arrival', 2),
-('CANCEL_POLICY', 'STRICT', 'Strict — 72hr before arrival', 3),
+('CANCEL_POLICY', 'FLEX', 'Flexible - free cancellation', 1),
+('CANCEL_POLICY', 'MOD', 'Moderate - 24hr before arrival', 2),
+('CANCEL_POLICY', 'STRICT', 'Strict - 72hr before arrival', 3),
 ('CANCEL_POLICY', 'NONREF', 'Non-refundable', 4),
 ('CANCEL_POLICY', 'CUSTOM', 'Custom policy', 5)
 ON CONFLICT (lov_type, lov_code) DO NOTHING;
@@ -1082,7 +1082,7 @@ ON CONFLICT (lov_type, lov_code) DO NOTHING;
 
 CREATE SCHEMA IF NOT EXISTS pms;
 
--- Digital keys — the physical/mobile key records the kiosk and eGuest issue
+-- Digital keys - the physical/mobile key records the kiosk and eGuest issue
 -- and manage. One reservation can hold several keys (guest count).
 CREATE TABLE IF NOT EXISTS pms.digital_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1103,7 +1103,7 @@ CREATE TABLE IF NOT EXISTS pms.digital_keys (
 CREATE INDEX IF NOT EXISTS idx_pms_dk_property ON pms.digital_keys (property_id);
 CREATE INDEX IF NOT EXISTS idx_pms_dk_res ON pms.digital_keys (reservation_id);
 
--- Stay feedback — one rating row per reservation (re-rating updates).
+-- Stay feedback - one rating row per reservation (re-rating updates).
 CREATE TABLE IF NOT EXISTS pms.feedback (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     env_id          UUID NOT NULL,
@@ -1135,7 +1135,7 @@ CREATE POLICY pms_fb_rls ON pms.feedback USING (property_id IN (SELECT id FROM p
 
 CREATE SCHEMA IF NOT EXISTS pms;
 
--- ── Kiosk terminal configuration — one row per property ─────────────────────
+-- ── Kiosk terminal configuration - one row per property ─────────────────────
 -- eKiosk reads this at bootstrap to gate its mode menu; the admin RFW
 -- settings page edits it. Lockdown freezes the terminal at the attract loop.
 CREATE TABLE IF NOT EXISTS pms.kiosk_config (
@@ -1151,7 +1151,7 @@ CREATE INDEX IF NOT EXISTS idx_pms_kiosk_cfg_env ON pms.kiosk_config (env_id);
 
 -- ── Corporate payment methods (credit approval surface) ─────────────────────
 -- eCorpBooking checkout surfaces POSTPAY/BILL_TO_COMPANY rows; hotel sales
--- (admin) manage the approval workflow. bill8 owns the actual token — PMS
+-- (admin) manage the approval workflow. bill8 owns the actual token - PMS
 -- stores the reference only, never PAN or token secrets (DESIGN.md §3).
 CREATE TABLE IF NOT EXISTS pms.company_payment_methods (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1203,7 +1203,7 @@ CREATE POLICY pms_cu_rls ON pms.company_users USING (property_id IN (SELECT id F
 -- ═════════════════════════════════════════════════════════════════════════════
 -- From migrations: guest-payment-methods
 -- ═══════════════════════════════════════════════════════════════════════════
--- Guest payment methods (app-eguest payment-method management) — appended
+-- Guest payment methods (app-eguest payment-method management) - appended
 -- guest-surface table for the signed-in session subject. bill8 owns the
 -- instrument; PMS stores the token reference only (DESIGN.md §3 secrets rule).
 

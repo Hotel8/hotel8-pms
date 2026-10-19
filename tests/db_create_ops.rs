@@ -7,11 +7,11 @@
 //! "Integration (DB-backed)").
 //!
 //! Each create handler's SQL must round-trip against the live `hotel8`
-//! database — typed date/enum/numeric binds verified on the real schema (the
+//! database - typed date/enum/numeric binds verified on the real schema (the
 //! audit this suite pins: text binds against date/enum columns are a 500).
 //! The suite SKIPS (not fails) when `HOTEL8_PMS_TEST_DATABASE_URL` is unset
 //! AND the provisioned default is unreachable. Each test runs inside ONE
-//! explicit transaction (`set_config` is transaction-local — the same rule
+//! explicit transaction (`set_config` is transaction-local - the same rule
 //! the handlers follow); the transaction rolls back on drop, so no manual
 //! cleanup rows escape a failed run.
 
@@ -24,7 +24,7 @@ const ENV: uuid::Uuid = uuid::Uuid::nil();
 
 fn db_url() -> Option<String> {
     // Test DSN: the service role (search_path pms, public) against the
-    // vertical database — same shape the running service uses. The suite
+    // vertical database - same shape the running service uses. The suite
     // runs when the URL env is set (`make test-rust` exports nothing; the
     // workspace DB suite sets it) OR when the vertical DB is reachable at
     // the provisioned default.
@@ -71,7 +71,7 @@ async fn fixture_property(
 }
 
 /// Create-op round-trips: date columns accept bound dates, enum columns
-/// accept their labels, numerics round-trip — the exact set the master-plan
+/// accept their labels, numerics round-trip - the exact set the master-plan
 /// audit (H11.1) proved was text-binding-broken before the fixes.
 mod create_ops {
     use super::*;
@@ -98,7 +98,7 @@ mod create_ops {
         .unwrap()
         .get("id");
 
-        // The EXACT INSERT shape the handler runs (rate_plans.rs) — typed
+        // The EXACT INSERT shape the handler runs (rate_plans.rs) - typed
         // date binds must parse; a text bind would 500 (operator does not
         // exist: date = text).
         let room_type_id: Uuid = sqlx::query(
@@ -261,7 +261,7 @@ mod create_ops {
         set_tenant_context(&mut conn, ENV).await;
         let property_id = fixture_property(&mut conn).await.unwrap();
 
-        // Block insert (blocks.rs shape — negotiated_rate is numeric-cast,
+        // Block insert (blocks.rs shape - negotiated_rate is numeric-cast,
         // released_until/cutoff arrive as typed strings).
         let block = sqlx::query(
             "INSERT INTO pms.blocks (property_id, block_code, block_name, room_type_id, start_date, end_date, blocked_rooms, released_until, status, block_type, negotiated_rate, cutoff_date)
@@ -285,7 +285,7 @@ mod create_ops {
         }
         assert!(block.is_ok(), "block INSERT with date casts must succeed");
 
-        // Event insert (events.rs shape — the audit's fixed text binds).
+        // Event insert (events.rs shape - the audit's fixed text binds).
         let event = sqlx::query(
             "INSERT INTO pms.events (property_id, event_code, event_name, event_type, start_date, end_date, status, expected_attendees, banquet_order, contact_name, contact_phone, notes)
              VALUES ($1, $2, $3, $4, $5::date, $6::date, 'TENTATIVE', $7, $8, $9, $10, $11) RETURNING id",

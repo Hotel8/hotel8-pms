@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Hotel8:PMS Admin UI handlers — RFW definitions.
+//! Hotel8:PMS Admin UI handlers - RFW definitions.
 //! Served from `GET /v1/admin/ui/{page}`, rendered by Sentin8:Dash at runtime.
 
 use crate::handlers::AppState;
@@ -114,7 +114,7 @@ pub async fn get_admin_ui(
                 icon: None,
             }))
             .build(),
-        // Kiosk terminal config — the eKiosk mode-menu source of truth
+        // Kiosk terminal config - the eKiosk mode-menu source of truth
         // (pms/DESIGN.md §3 "Staff & corporate surfaces"); the form PUTs
         // via the submit alias on the same resource.
         "kiosk-config" => AdminPage::new("Kiosk Terminal Config")
@@ -208,7 +208,7 @@ pub async fn get_admin_ui(
                 method: FormMethod::Put,
             }))
             .build(),
-        // Corporate account admin (ECRP-2) — company roster + credit methods
+        // Corporate account admin (ECRP-2) - company roster + credit methods
         // + traveler users + negotiated-rate links (pms/DESIGN.md §4).
         "corporate" => AdminPage::new("Corporate Accounts")
             .widget(RemoteWidget::DataTable(WidgetDataTable {
@@ -389,7 +389,7 @@ pub async fn get_admin_ui(
                 method: FormMethod::Post,
             }))
             .build(),
-        // ── Policy Studio — shared page
+        // ── Policy Studio - shared page
         // constructors; the guard guarantees `Some` (§3.7 dispatch).
         p if sentin8::rfw::policy_page("hotel8:pms", p).is_some() => {
             sentin8::rfw::policy_page("hotel8:pms", p)

@@ -184,6 +184,6 @@ use utoipa::OpenApi;
     security(),
     tags(
         (name = "policy", description = "Shield policy administration (shared surface)"),
-        (name = "pms", description = "Hotel8:PMS admin API — reservations, rates, blocks, events, frontdesk, housekeeping, reports"),
+        (name = "pms", description = "Hotel8:PMS admin API - reservations, rates, blocks, events, frontdesk, housekeeping, reports"),
     ),
 )]pub struct PmsOpenApi;

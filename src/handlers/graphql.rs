@@ -59,6 +59,6 @@ pub async fn graphql(
     // TODO: Implement full GraphQL resolver
     Ok(Json(serde_json::json!({
         "data": null,
-        "errors": [{ "message": "GraphQL queries not yet implemented — use REST API" }]
+        "errors": [{ "message": "GraphQL queries not yet implemented - use REST API" }]
     })))
 }

@@ -3,14 +3,14 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Admin data + form-submit endpoints — the live backends behind the RFW admin
+//! Admin data + form-submit endpoints - the live backends behind the RFW admin
 //! pages (`/v1/admin/ui/{page}` declares `data_endpoint: /v1/admin/{resource}`).
 //!
-//! Contract: `services/pms/DESIGN.md` §4 "Admin/RFU" — table GETs return
+//! Contract: `services/pms/DESIGN.md` §4 "Admin/RFU" - table GETs return
 //! RLS-filtered JSON for the RFW DataTable; submit aliases (POST create,
 //! POST-alias updates/deletes) reuse the public domain handlers so admin and
 //! staff paths share one business rule set. Scope enforcement (Shield step 5):
-//! each resource carries its `read` (GET) / `write` (POST) action — the same
+//! each resource carries its `read` (GET) / `write` (POST) action - the same
 //! actions the scope-mirror set permits.
 
 use axum::extract::{Path, State};
@@ -32,7 +32,7 @@ use crate::handlers::AppState;
     tag = "pms-admin",
 )]
 
-/// `GET /v1/admin/{resource}` — admin data for the RFW tables. Each resource
+/// `GET /v1/admin/{resource}` - admin data for the RFW tables. Each resource
 /// maps to its Shield `read` action; unknown resources 404.
 pub async fn get_admin_data(
     State(state): State<AppState>,
@@ -119,7 +119,7 @@ pub async fn get_admin_data(
         )
         .await,
         "reports" => {
-            // Aggregate card data — occupancy by date for the reporting page.
+            // Aggregate card data - occupancy by date for the reporting page.
             let rows = sqlx::query(
                 "SELECT arrival_date::text AS date, COUNT(*)::int AS reservations,
                         COALESCE(SUM(num_adults + num_children), 0)::int AS guests
@@ -231,7 +231,7 @@ pub async fn get_admin_data(
     tag = "pms-admin",
 )]
 
-/// `POST /v1/admin/{resource}` — form-submit aliases. The RFW renderer only
+/// `POST /v1/admin/{resource}` - form-submit aliases. The RFW renderer only
 /// POSTs; each alias calls the SAME public domain handler (shared business
 /// rules), so the admin surface can create/update/delete exactly what staff
 /// can.
@@ -305,7 +305,7 @@ pub async fn submit_admin_data(
     }
 }
 
-/// `(property_id, company_profile_id)` for the corporate admin aliases — the
+/// `(property_id, company_profile_id)` for the corporate admin aliases - the
 /// RFW form posts the profile id as a body field, the route supplies the
 /// property. 400 when the field is missing.
 fn corporate_pair(
@@ -333,7 +333,7 @@ fn rate_link_pair(
     Ok((property_id, rid))
 }
 
-/// Shield action per admin resource — reads gate on the resource `read` scope,
+/// Shield action per admin resource - reads gate on the resource `read` scope,
 /// writes on `write`. Unknown resources fail fast with 404 (never default).
 fn action_for(resource: &str, write: bool) -> Result<&'static str, (StatusCode, String)> {
     match (resource, write) {
@@ -351,7 +351,7 @@ fn action_for(resource: &str, write: bool) -> Result<&'static str, (StatusCode, 
         ("events", true) => Ok("hotel8:pms:event:write"),
         ("profiles", false) => Ok("hotel8:pms:profile:read"),
         ("profiles", true) => Ok("hotel8:pms:profile:write"),
-        // Corporate admin page (ECRP-2) — company roster + credit methods +
+        // Corporate admin page (ECRP-2) - company roster + credit methods +
         // negotiated-rate links ride the profile/rate scopes like their
         // staff-facing counterparts (DESIGN.md §4).
         ("companies", false) => Ok("hotel8:pms:profile:read"),
@@ -371,7 +371,7 @@ fn action_for(resource: &str, write: bool) -> Result<&'static str, (StatusCode, 
 }
 
 /// Run a column-list query bound to the property and return `{"items": [...]}`
-/// with the declared column names — the RFW DataTable contract (string cells;
+/// with the declared column names - the RFW DataTable contract (string cells;
 /// `NULL` → empty string).
 async fn admin_rows(
     conn: &mut sqlx::PgConnection,

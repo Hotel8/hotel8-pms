@@ -217,7 +217,7 @@ pub async fn create_rate_schedule(
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "room_type_id required".to_string()))?;
-    // Dates bind as chrono::NaiveDate (never text) — a "date = text"
+    // Dates bind as chrono::NaiveDate (never text) - a "date = text"
     // operator error came from untyped string binds reaching a date comparison.
     let parse_date = |v: Option<&serde_json::Value>, fallback: &'static str| -> chrono::NaiveDate {
         v.and_then(|x| x.as_str())

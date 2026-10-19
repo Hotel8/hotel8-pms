@@ -327,7 +327,7 @@ async fn transition_key(
     tag = "pms",
 )]
 
-/// Open folio for the in-house stay in a room — the kiosk/eGuest check-out
+/// Open folio for the in-house stay in a room - the kiosk/eGuest check-out
 /// view over the same folio rows the per-reservation route returns.
 pub async fn get_folio_by_room(
     State(state): State<AppState>,
@@ -451,7 +451,7 @@ pub async fn get_folio_by_room(
     tag = "pms",
 )]
 
-/// Boarding pass — the check-in artifact the kiosk completion step renders
+/// Boarding pass - the check-in artifact the kiosk completion step renders
 /// (room, dates, guest, key count). Computed from live rows, never stored.
 pub async fn get_boarding_pass(
     State(state): State<AppState>,
@@ -530,7 +530,7 @@ pub async fn get_boarding_pass(
     tag = "pms",
 )]
 
-/// Submit (or update) stay feedback — one row per reservation.
+/// Submit (or update) stay feedback - one row per reservation.
 pub async fn submit_feedback(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -664,9 +664,9 @@ pub async fn get_feedback(
     tag = "pms",
 )]
 
-/// `GET /v1/properties/{p}/payment-methods` — the signed-in guest's saved
+/// `GET /v1/properties/{p}/payment-methods` - the signed-in guest's saved
 /// payment methods, resolved by the session subject (holder-scoped). Rows
-/// carry bill8 token references only — never PAN or token secrets (DESIGN.md
+/// carry bill8 token references only - never PAN or token secrets (DESIGN.md
 /// §3 secret-reference rule).
 pub async fn list_payment_methods(
     State(state): State<AppState>,
@@ -712,7 +712,7 @@ pub async fn list_payment_methods(
     tag = "pms",
 )]
 
-/// `POST /v1/properties/{p}/payment-methods` — save a tokenized method
+/// `POST /v1/properties/{p}/payment-methods` - save a tokenized method
 /// (bill8 already holds the instrument; PMS stores the reference).
 pub async fn create_payment_method(
     State(state): State<AppState>,
@@ -788,7 +788,7 @@ pub async fn create_payment_method(
     tag = "pms",
 )]
 
-/// `DELETE /v1/properties/{p}/payment-methods/{method_id}` — remove a saved
+/// `DELETE /v1/properties/{p}/payment-methods/{method_id}` - remove a saved
 /// method (holder-scoped: only the owner's rows are deletable).
 pub async fn delete_payment_method(
     State(state): State<AppState>,
@@ -845,7 +845,7 @@ fn payment_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
     tag = "pms",
 )]
 
-/// `POST /v1/properties/{p}/reservations/{res_id}/link-guest` — bind the
+/// `POST /v1/properties/{p}/reservations/{res_id}/link-guest` - bind the
 /// signed-in session's guest profile to a booking made anonymously in eBooking.
 ///
 /// The binding surface is the profile chain: the anonymous booking carries the
@@ -885,7 +885,7 @@ pub async fn link_reservation_guest(
     })?
     .get("guest_profile_id");
 
-    // The signed-in guest's profile — resolved by the session subject via the
+    // The signed-in guest's profile - resolved by the session subject via the
     // loyalty-number binding, or the caller-supplied target profile id.
     let target_profile_id: Uuid = match req.get("target_profile_id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()) {
         Some(id) => id,

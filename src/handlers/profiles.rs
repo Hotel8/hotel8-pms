@@ -405,7 +405,7 @@ pub async fn get_stay_history(
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
-// ── Profile merge — deduplicate guest profiles, merge stay history ──
+// ── Profile merge - deduplicate guest profiles, merge stay history ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/profiles/merge",
@@ -535,7 +535,7 @@ pub async fn merge_profiles(
 
 /// `PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number`
 /// Sets the loyalty member number on a guest profile. Called by Hotel8:Loyalty
-/// via `pms-client` over its HTTP API (DESIGN.md §1 — no cross-service SQL).
+/// via `pms-client` over its HTTP API (DESIGN.md §1 - no cross-service SQL).
 pub async fn set_loyalty_number(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -543,7 +543,7 @@ pub async fn set_loyalty_number(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    // Step 5 — Shield decides. The profile-creation proxy-back also touches
+    // Step 5 - Shield decides. The profile-creation proxy-back also touches
     // the loyalty member; the mirror permit for this action is keyed on the
     // pms profile-write scope (the loyalty grant rides the caller's live
     // scope set when the tenant authors the cross-service rule).

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Integration tests for Hotel8:PMS — pure-logic paths, no database.
+//! Integration tests for Hotel8:PMS - pure-logic paths, no database.
 //!
 //! Mirrors the bill8-payments convention
 //! (`bill8/services/payments/tests/integration_test.rs`): the service is a
@@ -11,7 +11,7 @@
 //! library re-exports and assert cross-module behavior DB-free.
 //!
 //! Covered (see `hotel8/design/sentin8-hotel8-rust-test-strategy.md`):
-//! - Reservation lifecycle state transitions (state_machine.rs) — the exact
+//! - Reservation lifecycle state transitions (state_machine.rs) - the exact
 //!   guards used by front_desk check-in/check-out and cancel_reservation.
 //! - Folio open/close rules (cashiering).
 //! - Block + Event transition matrices (blocks.rs next-status table).
@@ -68,7 +68,7 @@ fn check_out_requires_checked_in() {
 #[test]
 fn cancel_guard_matches_not_in_terminal_list() {
     // reservations.rs::cancel_reservation: `status NOT IN
-    // ('CHECKED_OUT','NO_SHOW','CANCELLED')` — i.e. cancellable from
+    // ('CHECKED_OUT','NO_SHOW','CANCELLED')` - i.e. cancellable from
     // CONFIRMED and CHECKED_IN.
     assert!(ReservationState::Confirmed.can_transition_to(ReservationState::Cancelled));
     assert!(ReservationState::CheckedIn.can_transition_to(ReservationState::Cancelled));
@@ -88,7 +88,7 @@ fn cancel_guard_matches_not_in_terminal_list() {
 fn contract_status_enums_match_state_machine_labels() {
     // The wire enum (pms-contracts) and the DB-label enum (state_machine)
     // must agree on every variant, or handler persistence breaks.
-    // ReservationStatus has no Display impl — compare via serde wire format.
+    // ReservationStatus has no Display impl - compare via serde wire format.
     assert_eq!(
         serde_json::to_value(ReservationStatus::CheckedIn).unwrap(),
         ReservationState::CheckedIn.label()
@@ -152,7 +152,7 @@ fn event_lifecycle_is_ordered() {
 
 #[test]
 fn availability_formula_physical_minus_ooo_oos_minus_sold() {
-    // handlers::availability::available_rooms — §5.5 of the PMS design.
+    // handlers::availability::available_rooms - §5.5 of the PMS design.
     assert_eq!(
         hotel8_pms_server::handlers::availability::available_rooms(100, 3, 2, 95, 20),
         75
@@ -190,7 +190,7 @@ fn room_status_displays_are_db_labels() {
 // ── 7. Guest-surface filters (handlers/… guest filter composition) ─────────
 
 // The filter builder in `guest_surfaces`-adjacent handler code composes SQL
-// fragments; the safety-critical invariant is the status whitelist — free
+// fragments; the safety-critical invariant is the status whitelist - free
 // text must never reach SQL as interpolated status. The whitelist is
 // asserted directly here (the handler returns 400 before composing).
 
@@ -214,7 +214,7 @@ fn status_filter_whitelist_accepts_res_status_labels() {
 
 #[test]
 fn status_filter_whitelist_rejects_free_text() {
-    // Injection attempts and typos never reach SQL — the handler maps them
+    // Injection attempts and typos never reach SQL - the handler maps them
     // to a 400 with the filter name echoed.
     for s in ["'", "1=1 --", "CONFIRMED'", &undefined_filter()] {
         let ok = matches!(
@@ -226,7 +226,7 @@ fn status_filter_whitelist_rejects_free_text() {
 }
 
 fn undefined_filter() -> String {
-    // A plausible typo'd label (PENDING) — not a pms.res_status member.
+    // A plausible typo'd label (PENDING) - not a pms.res_status member.
     "PENDING".to_string()
 }
 

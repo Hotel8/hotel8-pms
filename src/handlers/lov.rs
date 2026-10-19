@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:PMS
 // SPDX-License-Identifier: Apache-2.0
 
-//! List of Values (LOV) handlers — reference data management.
+//! List of Values (LOV) handlers - reference data management.
 use crate::auth;
 use crate::handlers::AppState;
 use axum::extract::{Path, State};

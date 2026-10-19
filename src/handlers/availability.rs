@@ -206,7 +206,7 @@ pub async fn search_availability(
     tag = "pms",
 )]
 
-/// `POST /v1/properties/{property_id}/corporate-availability` — availability
+/// `POST /v1/properties/{property_id}/corporate-availability` - availability
 /// for a corporate session (company_profile_id). Rate-mix policy: when the
 /// request carries a company context, ONLY the negotiated rate plans linked
 /// to that company (via `preferences.negotiated_rate_plan_ids`) are returned;
@@ -514,7 +514,7 @@ pub async fn search_availability_org(
     })))
 }
 // ═══════════════════════════════════════════════════════════════════════════
-// Tests — pure availability math (H8T-5)
+// Tests - pure availability math (H8T-5)
 
 // The formulas mirror `sentin8-hotel8-pms-technical-design.md` §5.5 and the
 // / handler comments; they are exercised DB-free via the service
