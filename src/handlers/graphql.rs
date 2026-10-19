@@ -9,11 +9,12 @@ use crate::handlers::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{GraphQlError, GraphQlResponse};
 #[utoipa::path(
     post,
     path = "/v1/graphql",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - GraphQL envelope; `data` is query-shaped (free-form), `errors` carries message strings", body = GraphQlResponse),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -25,7 +26,7 @@ pub async fn graphql(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GraphQlResponse>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -37,8 +38,8 @@ pub async fn graphql(
     let query = req.get("query").and_then(|v| v.as_str()).unwrap_or("");
     // Simple introspection: return schema info for now
     if query.contains("__schema") || query.contains("__type") {
-        return Ok(Json(serde_json::json!({
-            "data": {
+        return Ok(Json(GraphQlResponse {
+            data: serde_json::json!({
                 "__schema": {
                     "types": [
                         { "name": "Property", "kind": "OBJECT" },
@@ -53,12 +54,15 @@ pub async fn graphql(
                         { "name": "Event", "kind": "OBJECT" },
                     ]
                 }
-            }
-        })));
+            }),
+            errors: None,
+        }));
     }
     // TODO: Implement full GraphQL resolver
-    Ok(Json(serde_json::json!({
-        "data": null,
-        "errors": [{ "message": "GraphQL queries not yet implemented - use REST API" }]
-    })))
+    Ok(Json(GraphQlResponse {
+        data: serde_json::Value::Null,
+        errors: Some(vec![GraphQlError {
+            message: "GraphQL queries not yet implemented - use REST API".into(),
+        }]),
+    }))
 }

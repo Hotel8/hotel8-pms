@@ -95,7 +95,7 @@ pub fn err_bad_request(msg: &str) -> (axum::http::StatusCode, String) {
     get,
     path = "/v1/health",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = hotel8::pms::contracts::HealthResponse),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -105,12 +105,16 @@ pub fn err_bad_request(msg: &str) -> (axum::http::StatusCode, String) {
 
 pub async fn health(
     axum::extract::State(state): axum::extract::State<AppState>,
-) -> axum::Json<serde_json::Value> {
-    axum::Json(serde_json::json!({
-        "status": "ok",
-        "service": "pms",
-        "version": sentin8::build_info::id(),
-            "build": sentin8::build_info::build_hash(),
-        "database": if state.pool.size() > 0 { "connected" } else { "disconnected" },
-    }))
+) -> axum::Json<hotel8::pms::contracts::HealthResponse> {
+    axum::Json(hotel8::pms::contracts::HealthResponse {
+        status: "ok".into(),
+        service: "pms".into(),
+        version: sentin8::build_info::id(),
+        build: sentin8::build_info::build_hash().to_string(),
+        database: if state.pool.size() > 0 {
+            "connected".into()
+        } else {
+            "disconnected".into()
+        },
+    })
 }

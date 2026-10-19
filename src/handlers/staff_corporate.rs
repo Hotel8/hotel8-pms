@@ -17,6 +17,14 @@ use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
 
+use hotel8::pms::contracts::{
+    AdminProvisioningResult, AdminProvisioningStatus, CompanyPaymentMethod,
+    CompanyPaymentMethodInput, CompanyPaymentMethodList, CompanyUserBound, CompanyUserInput,
+    CompanyUserList, CompanyUserView, KioskConfig, KioskConfigUpdate, ProvisionAdminRequest,
+    ReservationUpdateRequest, TravelerCompany, TravelerCompanyList,
+    WalkInCreated, WalkInRequest,
+};
+
 use crate::auth;
 use crate::handlers::AppState;
 
@@ -25,7 +33,9 @@ use crate::handlers::AppState;
     put,
     path = "/v1/properties/{property_id}/reservations/{res_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated reservation", body = hotel8::pms::contracts::ReservationResponse),
+        (status = 404, description = "Reservation not found"),
+        (status = 409, description = "Reservation is in a terminal status (CANCELLED, CHECKED_OUT, NO_SHOW)"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -42,8 +52,8 @@ pub async fn update_reservation(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, res_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ReservationUpdateRequest>,
+) -> Result<Json<hotel8::pms::contracts::ReservationResponse>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -92,34 +102,14 @@ pub async fn update_reservation(
     )
     .bind(res_id)
     .bind(property_id)
-    .bind(req.get("arrival_date").and_then(|v| v.as_str()))
-    .bind(req.get("departure_date").and_then(|v| v.as_str()))
-    .bind(
-        req.get("num_adults")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32),
-    )
-    .bind(
-        req.get("num_children")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32),
-    )
-    .bind(
-        req.get("num_rooms")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32),
-    )
-    .bind(
-        req.get("room_type_id")
-            .and_then(|v| v.as_str())
-            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
-    )
-    .bind(
-        req.get("rate_plan_id")
-            .and_then(|v| v.as_str())
-            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
-    )
-    .bind(req.get("special_requests").and_then(|v| v.as_str()))
+    .bind(req.arrival_date.as_deref())
+    .bind(req.departure_date.as_deref())
+    .bind(req.num_adults)
+    .bind(req.num_children)
+    .bind(req.num_rooms)
+    .bind(req.room_type_id)
+    .bind(req.rate_plan_id)
+    .bind(req.special_requests.as_deref())
     .fetch_one(&mut *conn)
     .await
     .map_err(super::err_db)?;
@@ -134,17 +124,21 @@ pub async fn update_reservation(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(super::reservations::row_to_json(&row)))
+    Ok(Json(super::reservations::row_to_reservation(&row)))
 }
 
 // ── Walk-in booking (kiosk express booking) ─────────────────────────────────
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/walk-in",
+    request_body = WalkInRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - CONFIRMED reservation for the kiosk to check in", body = WalkInCreated),
+        (status = 400, description = "room_type_id / dates required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Room type not found"),
+        (status = 409, description = "Room type sold out for the window"),
     ),
     security(),
     tag = "pms",
@@ -160,8 +154,8 @@ pub async fn create_walk_in(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<WalkInRequest>,
+) -> Result<Json<WalkInCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -174,25 +168,12 @@ pub async fn create_walk_in(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let room_type_id: uuid::Uuid = req
-        .get("room_type_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| super::err_bad_request("room_type_id required"))?;
-    let arrival = req
-        .get("arrival_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let departure = req
-        .get("departure_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let last_name = req
-        .get("last_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Walk-in");
-    let first_name = req.get("first_name").and_then(|v| v.as_str()).unwrap_or("");
-    let num_rooms = req.get("num_rooms").and_then(|v| v.as_u64()).unwrap_or(1) as i32;
+    let room_type_id: uuid::Uuid = req.room_type_id;
+    let arrival = req.arrival_date.clone();
+    let departure = req.departure_date.clone();
+    let last_name = req.last_name.as_str();
+    let first_name = req.first_name.as_str();
+    let num_rooms = req.num_rooms;
     if arrival.is_empty() || departure.is_empty() {
         return Err(super::err_bad_request(
             "arrival_date and departure_date required",
@@ -211,8 +192,8 @@ pub async fn create_walk_in(
          FROM pms.room_types rt WHERE rt.id = $4 AND rt.property_id = $1",
     )
     .bind(property_id)
-    .bind(arrival)
-    .bind(departure)
+    .bind(arrival.as_str())
+    .bind(departure.as_str())
     .bind(room_type_id)
     .fetch_one(&mut *conn)
     .await
@@ -252,8 +233,8 @@ pub async fn create_walk_in(
     .bind(&conf)
     .bind(profile_id)
     .bind(room_type_id)
-    .bind(arrival)
-    .bind(departure)
+    .bind(arrival.as_str())
+    .bind(departure.as_str())
     .bind(num_rooms)
     .fetch_one(&mut *conn)
     .await
@@ -272,15 +253,15 @@ pub async fn create_walk_in(
 
     conn.commit().await.map_err(super::err_db)?;
 
-    Ok(Json(serde_json::json!({
-        "id": res_id,
-        "confirmation_number": conf,
-        "guest_profile_id": profile_id,
-        "room_type_code": rt.get::<String, _>("room_type_code"),
-        "arrival_date": row.get::<chrono::NaiveDate, _>("arrival_date"),
-        "departure_date": row.get::<chrono::NaiveDate, _>("departure_date"),
-        "status": "CONFIRMED",
-    })))
+    Ok(Json(WalkInCreated {
+        id: res_id,
+        confirmation_number: conf,
+        guest_profile_id: profile_id,
+        room_type_code: rt.get::<String, _>("room_type_code"),
+        arrival_date: row.get::<chrono::NaiveDate, _>("arrival_date"),
+        departure_date: row.get::<chrono::NaiveDate, _>("departure_date"),
+        status: "CONFIRMED".into(),
+    }))
 }
 
 // ── Corporate payment methods (credit approval) ─────────────────────────────
@@ -288,7 +269,7 @@ pub async fn create_walk_in(
     get,
     path = "/v1/properties/{property_id}/companies/{profile_id}/payment-methods",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - credit methods for the company (approved_only=true filters to POSTPAY/BILL_TO_COMPANY)", body = CompanyPaymentMethodList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -304,7 +285,7 @@ pub async fn list_company_payment_methods(
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CompanyPaymentMethodList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -333,17 +314,20 @@ pub async fn list_company_payment_methods(
         .await
         .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "items": rows.iter().map(company_method_json).collect::<Vec<_>>() }),
-    ))
+    Ok(Json(CompanyPaymentMethodList {
+        items: rows.iter().map(company_method).collect(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/companies/{profile_id}/payment-methods",
+    request_body = CompanyPaymentMethodInput,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - method upserted (conflict key: company + label)", body = CompanyPaymentMethod),
+        (status = 400, description = "unknown approval value"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Company profile not found"),
     ),
     security(),
     tag = "pms",
@@ -355,8 +339,8 @@ pub async fn create_company_payment_method(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<CompanyPaymentMethodInput>,
+) -> Result<Json<CompanyPaymentMethod>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -380,19 +364,13 @@ pub async fn create_company_payment_method(
             e => super::err_db(e),
         })?;
 
-    let approval = req
-        .get("approval")
-        .and_then(|v| v.as_str())
-        .unwrap_or("PENDING");
+    let approval = req.approval.as_str();
     if !["PENDING", "POSTPAY", "BILL_TO_COMPANY", "REJECTED"].contains(&approval) {
         return Err(super::err_bad_request(&format!(
             "unknown approval: {approval}"
         )));
     }
-    let label = req
-        .get("label")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Corporate account");
+    let label = req.label.as_str();
     let row = sqlx::query(
         "INSERT INTO pms.company_payment_methods (property_id, company_profile_id, label, payment_method_id, approval, credit_limit, approved_at)
          VALUES ($1, $2, $3, $4, $5, NULLIF($6,'')::numeric, CASE WHEN $5 IN ('POSTPAY','BILL_TO_COMPANY') THEN now() ELSE NULL END)
@@ -407,9 +385,9 @@ pub async fn create_company_payment_method(
     .bind(property_id)
     .bind(profile_id)
     .bind(label)
-    .bind(req.get("payment_method_id").and_then(|v| v.as_str()))
+    .bind(req.payment_method_id.as_deref())
     .bind(approval)
-    .bind(req.get("credit_limit").and_then(|v| v.as_str()).unwrap_or(""))
+    .bind(req.credit_limit.as_deref().unwrap_or(""))
     .fetch_one(&mut *conn)
     .await
     .map_err(super::err_db)?;
@@ -424,20 +402,20 @@ pub async fn create_company_payment_method(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(company_method_json(&row)))
+    Ok(Json(company_method(&row)))
 }
 
-fn company_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
-    serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"),
-        "company_profile_id": r.get::<uuid::Uuid, _>("company_profile_id"),
-        "label": r.get::<String, _>("label"),
-        "payment_method_id": r.get::<Option<String>, _>("payment_method_id"),
-        "approval": r.get::<String, _>("approval"),
-        "credit_limit": r.get::<Option<String>, _>("credit_limit"),
-        "approved_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("approved_at"),
-        "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    })
+fn company_method(r: &sqlx::postgres::PgRow) -> CompanyPaymentMethod {
+    CompanyPaymentMethod {
+        id: r.get::<uuid::Uuid, _>("id"),
+        company_profile_id: r.get::<uuid::Uuid, _>("company_profile_id"),
+        label: r.get::<String, _>("label"),
+        payment_method_id: r.get::<Option<String>, _>("payment_method_id"),
+        approval: r.get::<String, _>("approval"),
+        credit_limit: r.get::<Option<String>, _>("credit_limit"),
+        approved_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("approved_at"),
+        created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    }
 }
 
 // ── Company user bindings (multi-company travelers) ─────────────────────────
@@ -445,7 +423,7 @@ fn company_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
     get,
     path = "/v1/properties/{property_id}/companies/{profile_id}/users",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - the company's traveler roster", body = CompanyUserList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -458,7 +436,7 @@ pub async fn list_company_users(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CompanyUserList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -483,29 +461,33 @@ pub async fn list_company_users(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<CompanyUserView> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "company_profile_id": r.get::<uuid::Uuid, _>("company_profile_id"),
-                "traveler_profile_id": r.get::<uuid::Uuid, _>("traveler_profile_id"),
-                "traveler_name": format!("{} {}", r.get::<String, _>("first_name"), r.get::<String, _>("last_name")),
-                "email": r.get::<Option<String>, _>("email"),
-                "role_at_company": r.get::<String, _>("role_at_company"),
-                "is_default": r.get::<bool, _>("is_default"),
-                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-            })
+        .map(|r| CompanyUserView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            company_profile_id: r.get::<uuid::Uuid, _>("company_profile_id"),
+            traveler_profile_id: r.get::<uuid::Uuid, _>("traveler_profile_id"),
+            traveler_name: format!(
+                "{} {}",
+                r.get::<String, _>("first_name"),
+                r.get::<String, _>("last_name")
+            ),
+            email: r.get::<Option<String>, _>("email"),
+            role_at_company: r.get::<String, _>("role_at_company"),
+            is_default: r.get::<bool, _>("is_default"),
+            created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(CompanyUserList { items }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/companies/{profile_id}/users",
+    request_body = CompanyUserInput,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - binding upserted (conflict key: company + traveler)", body = CompanyUserBound),
+        (status = 400, description = "traveler_profile_id required / unknown role_at_company"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -518,8 +500,8 @@ pub async fn create_company_user(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<CompanyUserInput>,
+) -> Result<Json<CompanyUserBound>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -532,24 +514,14 @@ pub async fn create_company_user(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let traveler_id: uuid::Uuid = req
-        .get("traveler_profile_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| super::err_bad_request("traveler_profile_id required"))?;
-    let role = req
-        .get("role_at_company")
-        .and_then(|v| v.as_str())
-        .unwrap_or("TRAVELER");
+    let traveler_id: uuid::Uuid = req.traveler_profile_id;
+    let role = req.role_at_company.as_str();
     if !["ADMIN", "BOOKING_AGENT", "TRAVELER"].contains(&role) {
         return Err(super::err_bad_request(&format!(
             "unknown role_at_company: {role}"
         )));
     }
-    let is_default = req
-        .get("is_default")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let is_default = req.is_default;
 
     let row = sqlx::query(
         "INSERT INTO pms.company_users (property_id, company_profile_id, traveler_profile_id, role_at_company, is_default)
@@ -577,20 +549,20 @@ pub async fn create_company_user(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "company_profile_id": row.get::<uuid::Uuid, _>("company_profile_id"),
-        "traveler_profile_id": row.get::<uuid::Uuid, _>("traveler_profile_id"),
-        "role_at_company": row.get::<String, _>("role_at_company"),
-        "is_default": row.get::<bool, _>("is_default"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    })))
+    Ok(Json(CompanyUserBound {
+        id: row.get::<uuid::Uuid, _>("id"),
+        company_profile_id: row.get::<uuid::Uuid, _>("company_profile_id"),
+        traveler_profile_id: row.get::<uuid::Uuid, _>("traveler_profile_id"),
+        role_at_company: row.get::<String, _>("role_at_company"),
+        is_default: row.get::<bool, _>("is_default"),
+        created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/companies/by-traveler/{profile_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - multi-company session switcher roster", body = TravelerCompanyList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -604,7 +576,7 @@ pub async fn list_companies_for_traveler(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, traveler_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<TravelerCompanyList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -628,19 +600,17 @@ pub async fn list_companies_for_traveler(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<TravelerCompany> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "company_profile_id": r.get::<uuid::Uuid, _>("id"),
-                "company_name": r.get::<String, _>("company_name"),
-                "role_at_company": r.get::<String, _>("role_at_company"),
-                "is_default": r.get::<bool, _>("is_default"),
-            })
+        .map(|r| TravelerCompany {
+            company_profile_id: r.get::<uuid::Uuid, _>("id"),
+            company_name: r.get::<String, _>("company_name"),
+            role_at_company: r.get::<String, _>("role_at_company"),
+            is_default: r.get::<bool, _>("is_default"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(TravelerCompanyList { items }))
 }
 
 // ── Kiosk terminal config ───────────────────────────────────────────────────
@@ -648,7 +618,7 @@ pub async fn list_companies_for_traveler(
     get,
     path = "/v1/properties/{property_id}/kiosk-config",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - default row materialized on first read", body = KioskConfig),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -663,7 +633,7 @@ pub async fn get_kiosk_config(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<KioskConfig>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -677,13 +647,15 @@ pub async fn get_kiosk_config(
     super::set_tenant_context(&mut conn, env_id).await;
     let row = kiosk_config_row(&mut conn, property_id, env_id).await?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(kiosk_config_json(&row)))
+    Ok(Json(kiosk_config(&row)))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/kiosk-config",
+    request_body = KioskConfigUpdate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = KioskConfig),
+        (status = 400, description = "unknown kiosk mode"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -696,8 +668,8 @@ pub async fn update_kiosk_config(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<KioskConfigUpdate>,
+) -> Result<Json<KioskConfig>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -710,15 +682,7 @@ pub async fn update_kiosk_config(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let modes: Vec<String> = req
-        .get("enabled_modes")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| m.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
+    let modes: Vec<String> = req.enabled_modes.clone();
     for m in &modes {
         if !["CHECK_IN", "CHECK_OUT", "COLLECT_KEY", "WALK_IN"].contains(&m.as_str()) {
             return Err(super::err_bad_request(&format!("unknown kiosk mode: {m}")));
@@ -730,23 +694,9 @@ pub async fn update_kiosk_config(
         "COLLECT_KEY".to_string(),
     ];
     let modes = if modes.is_empty() { defaults } else { modes };
-    let addon_codes: Vec<String> = req
-        .get("addon_package_codes")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| m.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    let max_keys = req
-        .get("max_keys_per_stay")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(4) as i32;
-    let lockdown = req
-        .get("lockdown")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let addon_codes: Vec<String> = req.addon_package_codes;
+    let max_keys = req.max_keys_per_stay;
+    let lockdown = req.lockdown;
 
     kiosk_config_row(&mut conn, property_id, env_id).await?;
     let row = sqlx::query(
@@ -772,7 +722,7 @@ pub async fn update_kiosk_config(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(kiosk_config_json(&row)))
+    Ok(Json(kiosk_config(&row)))
 }
 
 // ── SSO-free first-admin provisioning (ECRP-3) ─────────────────────────────
@@ -780,9 +730,10 @@ pub async fn update_kiosk_config(
     get,
     path = "/v1/properties/{property_id}/companies/{profile_id}/admin-provisioning",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - provisioning status for the corporate login decision", body = AdminProvisioningStatus),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Company profile not found"),
     ),
     security(),
     tag = "pms-admin",
@@ -796,7 +747,7 @@ pub async fn get_company_admin_provisioning(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AdminProvisioningStatus>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -827,20 +778,23 @@ pub async fn get_company_admin_provisioning(
     .map_err(super::err_db)?
     .get(0);
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "company_profile_id": profile_id,
-        "requires_provisioning": admin_count == 0 && !has_idp,
-        "has_idp": has_idp,
-        "admin_count": admin_count,
-    })))
+    Ok(Json(AdminProvisioningStatus {
+        company_profile_id: profile_id,
+        requires_provisioning: admin_count == 0 && !has_idp,
+        has_idp,
+        admin_count,
+    }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/companies/{profile_id}/admin-provisioning",
+    request_body = ProvisionAdminRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - idempotent; already-provisioned returns traveler_profile_id = null", body = AdminProvisioningResult),
+        (status = 400, description = "email required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Company profile not found"),
     ),
     security(),
     tag = "pms-admin",
@@ -855,8 +809,8 @@ pub async fn provision_company_admin(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ProvisionAdminRequest>,
+) -> Result<Json<AdminProvisioningResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -889,24 +843,19 @@ pub async fn provision_company_admin(
     .get(0);
     if has_idp || admin_count > 0 {
         conn.commit().await.map_err(super::err_db)?;
-        return Ok(Json(serde_json::json!({
-            "company_profile_id": profile_id,
-            "already_provisioned": true,
-            "requires_provisioning": false,
-        })));
+        return Ok(Json(AdminProvisioningResult {
+            company_profile_id: profile_id,
+            traveler_profile_id: None,
+            already_provisioned: true,
+            requires_provisioning: false,
+        }));
     }
 
     // Resolve or create the first admin's traveler profile by email.
-    let email = req
-        .get("email")
-        .and_then(|v| v.as_str())
-        .and_then(some_nonempty)
+    let email = some_nonempty(&req.email)
         .ok_or_else(|| super::err_bad_request("email required"))?;
-    let first_name = req.get("first_name").and_then(|v| v.as_str()).unwrap_or("");
-    let last_name = req
-        .get("last_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Admin");
+    let first_name = req.first_name.as_str();
+    let last_name = req.last_name.as_str();
     let existing: Option<uuid::Uuid> = sqlx::query(
         "SELECT id FROM pms.guest_profiles WHERE property_id = $1 AND profile_type = 'GUEST' AND lower(email) = lower($2) LIMIT 1",
     )
@@ -960,12 +909,12 @@ pub async fn provision_company_admin(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "company_profile_id": profile_id,
-        "traveler_profile_id": traveler_id,
-        "already_provisioned": false,
-        "requires_provisioning": false,
-    })))
+    Ok(Json(AdminProvisioningResult {
+        company_profile_id: profile_id,
+        traveler_profile_id: Some(traveler_id),
+        already_provisioned: false,
+        requires_provisioning: false,
+    }))
 }
 
 fn some_nonempty(s: &str) -> Option<String> {
@@ -1002,15 +951,13 @@ async fn kiosk_config_row(
         })
 }
 
-fn kiosk_config_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
-    let modes: Vec<String> = r.get("enabled_modes");
-    let addons: Vec<String> = r.get("addon_package_codes");
-    serde_json::json!({
-        "property_id": r.get::<uuid::Uuid, _>("property_id"),
-        "enabled_modes": modes,
-        "addon_package_codes": addons,
-        "max_keys_per_stay": r.get::<i32, _>("max_keys_per_stay"),
-        "lockdown": r.get::<bool, _>("lockdown"),
-        "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
-    })
+fn kiosk_config(r: &sqlx::postgres::PgRow) -> KioskConfig {
+    KioskConfig {
+        property_id: r.get::<uuid::Uuid, _>("property_id"),
+        enabled_modes: r.get("enabled_modes"),
+        addon_package_codes: r.get("addon_package_codes"),
+        max_keys_per_stay: r.get::<i32, _>("max_keys_per_stay"),
+        lockdown: r.get::<bool, _>("lockdown"),
+        updated_at: r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+    }
 }

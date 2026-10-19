@@ -13,6 +13,10 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{
+    CorporateAvailability, GuaranteePolicyList, OrgAvailability, PackageList,
+    PropertyAvailability, RatePlanQuote, RoomTypeAvailability,
+};
 use sqlx::Row;
 
 // / available rooms for a rate/room-type over a stay.
@@ -63,8 +67,14 @@ pub fn restrictions_allow(
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/availability",
+    params(
+        ("property_id" = uuid::Uuid, Path, description = "Property identifier"),
+        ("arrivalDate" = String, Query, description = "Arrival date (YYYY-MM-DD)"),
+        ("departureDate" = String, Query, description = "Departure date (YYYY-MM-DD)"),
+        ("numberOfAdults" = i32, Query, description = "Number of adults (default 2)"),
+    ),
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Sellable room types with quoted rate plans", body = PropertyAvailability),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -77,7 +87,7 @@ pub async fn search_availability(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PropertyAvailability>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -139,7 +149,7 @@ pub async fn search_availability(
     .bind(property_id).bind(arrival)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
 
-    let rt_items: Vec<serde_json::Value> = room_types
+    let rt_items: Vec<RoomTypeAvailability> = room_types
         .iter()
         .filter_map(|rt| {
             let available: i32 = rt.get("available");
@@ -151,7 +161,7 @@ pub async fn search_availability(
                 return None;
             }
             // Get matching rate plans for this room type
-            let rp_items: Vec<serde_json::Value> = rate_plans.iter().filter_map(|rp| {
+            let rp_items: Vec<RatePlanQuote> = rate_plans.iter().filter_map(|rp| {
             let min_los: Option<i32> = rp.get("min_los");
             let max_los: Option<i32> = rp.get("max_los");
             let min_adv: Option<i32> = rp.get("min_advance_booking");
@@ -159,48 +169,71 @@ pub async fn search_availability(
             if !restrictions_allow(num_nights, advance_days, min_los, max_los, min_adv) {
                 return None;
             }
-            Some(serde_json::json!({
-                "rate_plan_id": rp.get::<uuid::Uuid, _>("id"),
-                "rate_plan_code": rp.get::<String, _>("rate_plan_code"),
-                "rate_plan_name": rp.get::<String, _>("rate_plan_name"),
-                "currency_code": rp.get::<String, _>("currency_code"),
-                "rate_amount": rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
-            }))
+            Some(RatePlanQuote {
+                rate_plan_id: rp.get::<uuid::Uuid, _>("id"),
+                rate_plan_code: rp.get::<String, _>("rate_plan_code"),
+                rate_plan_name: rp.get::<String, _>("rate_plan_name"),
+                currency_code: rp.get::<String, _>("currency_code"),
+                rate_amount: rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
+                negotiated: None,
+            })
         }).collect();
             if rp_items.is_empty() {
                 return None;
             }
-            Some(serde_json::json!({
-                "room_type_id": rt.get::<uuid::Uuid, _>("id"),
-                "room_type_code": rt.get::<String, _>("room_type_code"),
-                "room_type_name": rt.get::<String, _>("room_type_name"),
-                "max_occupancy": max_occ,
-                "bed_type": rt.get::<Option<String>, _>("bed_type"),
-                "available_rooms": available,
-                "rate_plans": rp_items,
-            }))
+            Some(RoomTypeAvailability {
+                room_type_id: rt.get::<uuid::Uuid, _>("id"),
+                room_type_code: rt.get::<String, _>("room_type_code"),
+                room_type_name: rt.get::<String, _>("room_type_name"),
+                max_occupancy: max_occ,
+                bed_type: rt.get::<Option<String>, _>("bed_type"),
+                available_rooms: available,
+                rate_plans: rp_items,
+            })
         })
         .collect();
 
     conn.commit().await.map_err(super::err_db)?;
 
-    Ok(Json(serde_json::json!({
-        "property_id": property_id,
-        "arrival_date": arrival,
-        "departure_date": departure,
-        "number_of_nights": num_nights,
-        "room_types": rt_items,
-    })))
+    Ok(Json(PropertyAvailability {
+        property_id,
+        arrival_date: arrival.to_owned(),
+        departure_date: departure.to_owned(),
+        number_of_nights: num_nights,
+        room_types: rt_items,
+    }))
 }
 
 // ── Company-scoped rate-mix (corporate availability) ───────────────────────
+
+/// The company-scoped request body (`company_profile_id` + stay + occupancy).
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct CorporateAvailabilityRequest {
+    pub company_profile_id: uuid::Uuid,
+    pub arrival_date: String,
+    pub departure_date: String,
+    /// Defaults to 1 when omitted.
+    #[serde(default = "default_one")]
+    pub number_of_guests: i32,
+    /// Defaults to 1 when omitted.
+    #[serde(default = "default_one")]
+    pub number_of_rooms: i32,
+}
+
+fn default_one() -> i32 {
+    1
+}
+
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/corporate-availability",
+    request_body = CorporateAvailabilityRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Negotiated-plan rate-mix for the company", body = CorporateAvailability),
+        (status = 400, description = "company_profile_id, arrival_date and departure_date required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Company profile not found"),
     ),
     security(),
     tag = "pms",
@@ -217,8 +250,8 @@ pub async fn corporate_availability(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<CorporateAvailabilityRequest>,
+) -> Result<Json<CorporateAvailability>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -231,32 +264,16 @@ pub async fn corporate_availability(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let company_profile_id: uuid::Uuid = req
-        .get("company_profile_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| super::err_bad_request("company_profile_id required"))?;
-    let arrival = req
-        .get("arrival_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let departure = req
-        .get("departure_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let company_profile_id = req.company_profile_id;
+    let arrival = req.arrival_date.as_str();
+    let departure = req.departure_date.as_str();
     if arrival.is_empty() || departure.is_empty() {
         return Err(super::err_bad_request(
             "arrival_date and departure_date required",
         ));
     }
-    let num_adults: i32 = req
-        .get("number_of_guests")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1) as i32;
-    let num_rooms: i32 = req
-        .get("number_of_rooms")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1) as i32;
+    let num_adults: i32 = req.number_of_guests;
+    let num_rooms: i32 = req.number_of_rooms;
 
     // The company profile must exist on this property (RLS filters the env).
     let _cp = sqlx::query("SELECT id FROM pms.guest_profiles WHERE id = $1 AND property_id = $2 AND profile_type = 'COMPANY'")
@@ -305,7 +322,7 @@ pub async fn corporate_availability(
         .unwrap_or_else(|_| chrono::Utc::now().date_naive());
     let advance_days = (arrival_date - chrono::Utc::now().date_naive()).num_days();
 
-    let rt_items: Vec<serde_json::Value> = room_types
+    let rt_items: Vec<RoomTypeAvailability> = room_types
         .iter()
         .filter_map(|rt| {
             let available: i32 = rt.get("available");
@@ -316,46 +333,46 @@ pub async fn corporate_availability(
             if num_adults > max_occ {
                 return None;
             }
-            let rp_items: Vec<serde_json::Value> = rate_plans.iter().filter_map(|rp| {
+            let rp_items: Vec<RatePlanQuote> = rate_plans.iter().filter_map(|rp| {
             let min_los: Option<i32> = rp.get("min_los");
             let max_los: Option<i32> = rp.get("max_los");
             let min_adv: Option<i32> = rp.get("min_advance_booking");
             if !restrictions_allow(num_nights, advance_days, min_los, max_los, min_adv) {
                 return None;
             }
-            Some(serde_json::json!({
-                "rate_plan_id": rp.get::<uuid::Uuid, _>("id"),
-                "rate_plan_code": rp.get::<String, _>("rate_plan_code"),
-                "rate_plan_name": rp.get::<String, _>("rate_plan_name"),
-                "currency_code": rp.get::<String, _>("currency_code"),
-                "rate_amount": rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
-                "negotiated": true,
-            }))
+            Some(RatePlanQuote {
+                rate_plan_id: rp.get::<uuid::Uuid, _>("id"),
+                rate_plan_code: rp.get::<String, _>("rate_plan_code"),
+                rate_plan_name: rp.get::<String, _>("rate_plan_name"),
+                currency_code: rp.get::<String, _>("currency_code"),
+                rate_amount: rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
+                negotiated: Some(true),
+            })
         }).collect();
             if rp_items.is_empty() {
                 return None;
             }
-            Some(serde_json::json!({
-                "room_type_id": rt.get::<uuid::Uuid, _>("id"),
-                "room_type_code": rt.get::<String, _>("room_type_code"),
-                "room_type_name": rt.get::<String, _>("room_type_name"),
-                "max_occupancy": max_occ,
-                "bed_type": rt.get::<Option<String>, _>("bed_type"),
-                "available_rooms": available,
-                "rate_plans": rp_items,
-            }))
+            Some(RoomTypeAvailability {
+                room_type_id: rt.get::<uuid::Uuid, _>("id"),
+                room_type_code: rt.get::<String, _>("room_type_code"),
+                room_type_name: rt.get::<String, _>("room_type_name"),
+                max_occupancy: max_occ,
+                bed_type: rt.get::<Option<String>, _>("bed_type"),
+                available_rooms: available,
+                rate_plans: rp_items,
+            })
         })
         .collect();
 
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "property_id": property_id,
-        "company_profile_id": company_profile_id,
-        "arrival_date": arrival,
-        "departure_date": departure,
-        "number_of_nights": num_nights,
-        "room_types": rt_items,
-    })))
+    Ok(Json(CorporateAvailability {
+        property_id,
+        company_profile_id,
+        arrival_date: arrival.to_owned(),
+        departure_date: departure.to_owned(),
+        number_of_nights: num_nights,
+        room_types: rt_items,
+    }))
 }
 
 #[allow(dead_code)]
@@ -363,7 +380,7 @@ pub async fn get_packages(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(_property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PackageList>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -380,23 +397,21 @@ pub async fn get_packages(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let packages: Vec<serde_json::Value> = rows
+    let packages: Vec<hotel8::pms::contracts::PackageSummary> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "package_code": r.get::<String, _>("package_code"),
-                "package_name": r.get::<String, _>("package_name"),
-            })
+        .map(|r| hotel8::pms::contracts::PackageSummary {
+            package_code: r.get::<String, _>("package_code"),
+            package_name: r.get::<String, _>("package_name"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": packages })))
+    Ok(Json(PackageList { items: packages }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/guarantee-policies",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Guarantee policy catalog", body = GuaranteePolicyList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -408,7 +423,7 @@ pub async fn get_guarantee_policies(
     State(_state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(_property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GuaranteePolicyList>, (StatusCode, String)> {
     let _a = auth::verify_token(&_state.config, &headers).await?;
     crate::policy::require(
         &_state.policy,
@@ -417,20 +432,32 @@ pub async fn get_guarantee_policies(
         sentin8::shield::EvalTarget::new("hotel8:pms:read"),
     )
     .await?;
-    Ok(Json(serde_json::json!({
-        "items": [
-            { "code": "CCG", "description": "Credit Card Guarantee", "is_active": true },
-            { "code": "6PM", "description": "6PM Hold", "is_active": true },
-        ]
-    })))
+    Ok(Json(GuaranteePolicyList {
+        items: vec![
+            hotel8::pms::contracts::GuaranteePolicy {
+                code: "CCG".into(),
+                description: "Credit Card Guarantee".into(),
+                is_active: true,
+            },
+            hotel8::pms::contracts::GuaranteePolicy {
+                code: "6PM".into(),
+                description: "6PM Hold".into(),
+                is_active: true,
+            },
+        ],
+    }))
 }
 
 // ── Multi-property availability search (org-wide) ──
 #[utoipa::path(
     get,
     path = "/v1/availability",
+    params(
+        ("arrivalDate" = String, Query, description = "Arrival date (YYYY-MM-DD)"),
+        ("departureDate" = String, Query, description = "Departure date (YYYY-MM-DD)"),
+    ),
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Availability rolled up across every property of the environment", body = OrgAvailability),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -442,7 +469,7 @@ pub async fn search_availability_org(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<OrgAvailability>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -469,7 +496,7 @@ pub async fn search_availability_org(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let mut results: Vec<serde_json::Value> = Vec::new();
+    let mut results: Vec<hotel8::pms::contracts::OrgPropertyAvailability> = Vec::new();
     for p in &props {
         let property_id: uuid::Uuid = p.get("id");
         // Get available room types for this property
@@ -484,34 +511,32 @@ pub async fn search_availability_org(
         )
         .bind(property_id).bind(arrival).bind(departure)
         .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-        let rt_items: Vec<serde_json::Value> = rts
+        let rt_items: Vec<hotel8::pms::contracts::OrgRoomTypeAvailability> = rts
             .iter()
             .filter(|r| r.get::<Option<i32>, _>("available").unwrap_or(0) > 0)
-            .map(|r| {
-                serde_json::json!({
-                    "room_type_code": r.get::<String, _>("room_type_code"),
-                    "room_type_name": r.get::<String, _>("room_type_name"),
-                    "available_rooms": r.get::<Option<i32>, _>("available").unwrap_or(0),
-                })
+            .map(|r| hotel8::pms::contracts::OrgRoomTypeAvailability {
+                room_type_code: r.get::<String, _>("room_type_code"),
+                room_type_name: r.get::<String, _>("room_type_name"),
+                available_rooms: r.get::<Option<i32>, _>("available").unwrap_or(0),
             })
             .collect();
         if !rt_items.is_empty() {
-            results.push(serde_json::json!({
-                "property_id": property_id,
-                "property_code": p.get::<String, _>("property_code"),
-                "property_name": p.get::<String, _>("property_name"),
-                "city": p.get::<Option<String>, _>("city"),
-                "room_types": rt_items,
-            }));
+            results.push(hotel8::pms::contracts::OrgPropertyAvailability {
+                property_id,
+                property_code: p.get::<String, _>("property_code"),
+                property_name: p.get::<String, _>("property_name"),
+                city: p.get::<Option<String>, _>("city"),
+                room_types: rt_items,
+            });
         }
     }
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "env_id": env_id,
-        "arrival_date": arrival,
-        "departure_date": departure,
-        "properties": results,
-    })))
+    Ok(Json(OrgAvailability {
+        env_id,
+        arrival_date: arrival.to_owned(),
+        departure_date: departure.to_owned(),
+        properties: results,
+    }))
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // Tests - pure availability math (H8T-5)

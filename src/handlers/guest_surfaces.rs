@@ -13,6 +13,12 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{
+    BoardingPass, CreateGuestPaymentMethodRequest, DigitalKeyList, DigitalKeyTransitionResult,
+    DigitalKeyView, FeedbackLookup, FeedbackView, FolioChargeView, FolioPaymentView,
+    GuestPaymentMethod, GuestPaymentMethodList, IssueDigitalKeyRequest, IssuedKeyList,
+    IssuedKeyRef, LinkGuestRequest, LinkGuestResult, RoomFolioView, SubmitFeedbackRequest,
+};
 use serde_json::json;
 use sqlx::Row;
 use uuid::Uuid;
@@ -26,7 +32,8 @@ use crate::handlers::{resolve_org_env, set_tenant_context, AppState};
     get,
     path = "/v1/properties/{property_id}/digital-keys",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Digital keys of the reservation", body = DigitalKeyList),
+        (status = 400, description = "reservation_id required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -40,7 +47,7 @@ pub async fn list_digital_keys(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
     Query(params): Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<DigitalKeyList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -68,33 +75,35 @@ pub async fn list_digital_keys(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<DigitalKeyView> = rows
         .iter()
-        .map(|r| {
-            json!({
-                "id": r.get::<Uuid, _>("id"),
-                "reservation_id": r.get::<Uuid, _>("reservation_id"),
-                "room_number": r.get::<Option<String>, _>("room_number"),
-                "key_type": r.get::<String, _>("key_type"),
-                "status": r.get::<String, _>("status"),
-                "issued_at": r.get::<chrono::DateTime<chrono::Utc>, _>("issued_at"),
-                "activated_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("activated_at"),
-                "revoked_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("revoked_at"),
-                "expires_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("expires_at"),
-                "issued_count": r.get::<i32, _>("issued_count"),
-            })
+        .map(|r| DigitalKeyView {
+            id: r.get::<Uuid, _>("id"),
+            reservation_id: r.get::<Uuid, _>("reservation_id"),
+            room_number: r.get::<Option<String>, _>("room_number"),
+            key_type: r.get::<String, _>("key_type"),
+            status: r.get::<String, _>("status"),
+            issued_at: r.get::<chrono::DateTime<chrono::Utc>, _>("issued_at"),
+            activated_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("activated_at"),
+            revoked_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("revoked_at"),
+            expires_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("expires_at"),
+            issued_count: r.get::<i32, _>("issued_count"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({ "items": items })))
+    Ok(Json(DigitalKeyList { items }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/digital-keys",
+    request_body = IssueDigitalKeyRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Issued (or reused) digital keys", body = IssuedKeyList),
+        (status = 400, description = "reservation_id required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Reservation not found"),
+        (status = 409, description = "Keys are issued for checked-in reservations only"),
     ),
     security(),
     tag = "pms",
@@ -105,8 +114,8 @@ pub async fn issue_digital_key(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<IssueDigitalKeyRequest>,
+) -> Result<Json<IssuedKeyList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -118,20 +127,9 @@ pub async fn issue_digital_key(
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let res_id = req
-        .get("reservation_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "reservation_id required".into()))?;
-    let key_type = req
-        .get("key_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("PHYSICAL");
-    let count = req
-        .get("count")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(1)
-        .clamp(1, 8) as i32;
+    let res_id = req.reservation_id;
+    let key_type = req.key_type.as_str();
+    let count = req.count.clamp(1, 8);
     let res = sqlx::query(
         "SELECT status, assigned_room_number FROM pms.reservations
          WHERE id = $1 AND property_id = $2",
@@ -201,17 +199,21 @@ pub async fn issue_digital_key(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        json!({ "items": issued.iter().map(|i| json!({"id": i})).collect::<Vec<_>>() }),
-    ))
+    Ok(Json(IssuedKeyList {
+        items: issued
+            .iter()
+            .map(|i| IssuedKeyRef { id: *i })
+            .collect(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/digital-keys/{key_id}/activate",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Activated key", body = DigitalKeyTransitionResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 409, description = "Key is not in a state that allows activation"),
     ),
     security(),
     tag = "pms",
@@ -222,16 +224,17 @@ pub async fn activate_digital_key(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, key_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<DigitalKeyTransitionResult>, (StatusCode, String)> {
     transition_key(state, headers, property_id, key_id, "ACTIVE").await
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/digital-keys/{key_id}/deactivate",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Revoked key", body = DigitalKeyTransitionResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 409, description = "Key is not in a state that allows revocation"),
     ),
     security(),
     tag = "pms",
@@ -242,7 +245,7 @@ pub async fn deactivate_digital_key(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, key_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<DigitalKeyTransitionResult>, (StatusCode, String)> {
     transition_key(state, headers, property_id, key_id, "REVOKED").await
 }
 
@@ -252,7 +255,7 @@ async fn transition_key(
     property_id: Uuid,
     key_id: Uuid,
     target: &str,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<DigitalKeyTransitionResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -306,12 +309,12 @@ async fn transition_key(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({
-        "id": row.get::<Uuid, _>("id"),
-        "reservation_id": row.get::<Uuid, _>("reservation_id"),
-        "room_number": row.get::<Option<String>, _>("room_number"),
-        "status": row.get::<String, _>("status"),
-    })))
+    Ok(Json(DigitalKeyTransitionResult {
+        id: row.get::<Uuid, _>("id"),
+        reservation_id: row.get::<Uuid, _>("reservation_id"),
+        room_number: row.get::<Option<String>, _>("room_number"),
+        status: row.get::<String, _>("status"),
+    }))
 }
 
 // ── Folios by room (check-out settlement view) ────────────────────────────
@@ -319,9 +322,11 @@ async fn transition_key(
     get,
     path = "/v1/properties/{property_id}/folios",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Folio settlement view for the in-house stay in the room", body = RoomFolioView),
+        (status = 400, description = "room_number required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "No in-house stay for that room"),
     ),
     security(),
     tag = "pms",
@@ -334,7 +339,7 @@ pub async fn get_folio_by_room(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
     Query(params): Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<RoomFolioView>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -376,14 +381,15 @@ pub async fn get_folio_by_room(
     let folio = match folio {
         Some(f) => f,
         None => {
-            return Ok(Json(json!({
-                "reservation_id": res_id,
-                "room_number": room,
-                "status": "NONE",
-                "charges": [],
-                "payments": [],
-                "balance": "0",
-            })))
+            return Ok(Json(RoomFolioView {
+                id: None,
+                reservation_id: res_id,
+                room_number: room.to_string(),
+                status: "NONE".into(),
+                charges: Vec::new(),
+                payments: Vec::new(),
+                balance: "0".into(),
+            }))
         }
     };
     let folio_id: Uuid = folio.get("id");
@@ -414,28 +420,34 @@ pub async fn get_folio_by_room(
     let balance = ((total_charges - total_payments) * 100.0).round() / 100.0;
     let status: String = folio.get("status");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({
-        "id": folio_id,
-        "reservation_id": res_id,
-        "room_number": room,
-        "status": status,
-        "charges": charges.iter().map(|r| json!({
-            "id": r.get::<Uuid, _>("id"),
-            "charge_code": r.get::<String, _>("charge_code"),
-            "description": r.get::<String, _>("description"),
-            "amount": r.get::<String, _>("amount"),
-            "quantity": r.get::<i32, _>("quantity"),
-            "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-        })).collect::<Vec<_>>(),
-        "payments": payments.iter().map(|r| json!({
-            "id": r.get::<Uuid, _>("id"),
-            "payment_code": r.get::<String, _>("payment_code"),
-            "amount": r.get::<String, _>("amount"),
-            "reference": r.get::<Option<String>, _>("reference"),
-            "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-        })).collect::<Vec<_>>(),
-        "balance": format!("{balance:.2}"),
-    })))
+    Ok(Json(RoomFolioView {
+        id: Some(folio_id),
+        reservation_id: res_id,
+        room_number: room.to_string(),
+        status,
+        charges: charges
+            .iter()
+            .map(|r| FolioChargeView {
+                id: r.get::<Uuid, _>("id"),
+                charge_code: r.get::<String, _>("charge_code"),
+                description: r.get::<String, _>("description"),
+                amount: r.get::<String, _>("amount"),
+                quantity: r.get::<i32, _>("quantity"),
+                created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            })
+            .collect(),
+        payments: payments
+            .iter()
+            .map(|r| FolioPaymentView {
+                id: r.get::<Uuid, _>("id"),
+                payment_code: r.get::<String, _>("payment_code"),
+                amount: r.get::<String, _>("amount"),
+                reference: r.get::<Option<String>, _>("reference"),
+                created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            })
+            .collect(),
+        balance: format!("{balance:.2}"),
+    }))
 }
 
 // ── Boarding pass (check-in artifact) ─────────────────────────────────────
@@ -443,9 +455,11 @@ pub async fn get_folio_by_room(
     get,
     path = "/v1/properties/{property_id}/reservations/{res_id}/boarding-pass",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Check-in boarding pass", body = BoardingPass),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Reservation not found"),
+        (status = 409, description = "Boarding pass is issued after check-in"),
     ),
     security(),
     tag = "pms",
@@ -457,7 +471,7 @@ pub async fn get_boarding_pass(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, res_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<BoardingPass>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -499,30 +513,34 @@ pub async fn get_boarding_pass(
         ));
     }
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({
-        "reservation_id": res_id,
-        "confirmation_number": res.get::<String, _>("confirmation_number"),
-        "guest_name": format!(
+    Ok(Json(BoardingPass {
+        reservation_id: res_id,
+        confirmation_number: res.get::<String, _>("confirmation_number"),
+        guest_name: format!(
             "{} {}",
             res.get::<Option<String>, _>("first_name").unwrap_or_default(),
             res.get::<Option<String>, _>("last_name").unwrap_or_default()
-        ).trim().to_string(),
-        "property_name": res.get::<Option<String>, _>("property_name"),
-        "room_number": res.get::<Option<String>, _>("assigned_room_number"),
-        "arrival_date": res.get::<chrono::NaiveDate, _>("arrival_date"),
-        "departure_date": res.get::<chrono::NaiveDate, _>("departure_date"),
-        "num_adults": res.get::<i32, _>("num_adults"),
-        "key_count": keys,
-        "issued_at": chrono::Utc::now(),
-    })))
+        )
+        .trim()
+        .to_string(),
+        property_name: res.get::<Option<String>, _>("property_name"),
+        room_number: res.get::<Option<String>, _>("assigned_room_number"),
+        arrival_date: res.get::<chrono::NaiveDate, _>("arrival_date"),
+        departure_date: res.get::<chrono::NaiveDate, _>("departure_date"),
+        num_adults: res.get::<i32, _>("num_adults"),
+        key_count: keys,
+        issued_at: chrono::Utc::now(),
+    }))
 }
 
 // ── Stay feedback ─────────────────────────────────────────────────────────
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/feedback",
+    request_body = SubmitFeedbackRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Submitted stay feedback", body = FeedbackView),
+        (status = 400, description = "reservation_id required / rating must be 1-5"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -535,8 +553,8 @@ pub async fn submit_feedback(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<SubmitFeedbackRequest>,
+) -> Result<Json<FeedbackView>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -548,19 +566,12 @@ pub async fn submit_feedback(
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let res_id = req
-        .get("reservation_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "reservation_id required".into()))?;
-    let rating = req
-        .get("rating")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "rating (1-5) required".into()))?;
+    let res_id = req.reservation_id;
+    let rating = req.rating;
     if !(1..=5).contains(&rating) {
         return Err((StatusCode::BAD_REQUEST, "rating must be 1-5".into()));
     }
-    let comment = req.get("comment").and_then(|v| v.as_str());
+    let comment = req.comment.as_deref();
     let row = sqlx::query(
         "INSERT INTO pms.feedback (env_id, property_id, reservation_id, rating, comment)
          VALUES ($1, $2, $3, $4, $5)
@@ -572,7 +583,7 @@ pub async fn submit_feedback(
     .bind(env_id)
     .bind(property_id)
     .bind(res_id)
-    .bind(rating as i32)
+    .bind(rating)
     .bind(comment)
     .fetch_one(&mut *conn)
     .await
@@ -587,19 +598,20 @@ pub async fn submit_feedback(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(json!({
-        "id": row.get::<Uuid, _>("id"),
-        "reservation_id": res_id,
-        "rating": row.get::<i32, _>("rating"),
-        "comment": row.get::<Option<String>, _>("comment"),
-        "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
-    })))
+    Ok(Json(FeedbackView {
+        id: row.get::<Uuid, _>("id"),
+        reservation_id: res_id,
+        rating: row.get::<i32, _>("rating"),
+        comment: row.get::<Option<String>, _>("comment"),
+        updated_at: row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/feedback",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Stay feedback for the reservation", body = FeedbackLookup),
+        (status = 400, description = "reservation_id required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -613,7 +625,7 @@ pub async fn get_feedback(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
     Query(params): Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<FeedbackLookup>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -641,14 +653,20 @@ pub async fn get_feedback(
     .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(match row {
-        Some(r) => json!({
-            "reservation_id": res_id,
-            "rating": r.get::<i32, _>("rating"),
-            "comment": r.get::<Option<String>, _>("comment"),
-            "submitted_at": r.get::<chrono::DateTime<chrono::Utc>, _>("submitted_at"),
-            "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
-        }),
-        None => json!({ "reservation_id": res_id, "rating": null }),
+        Some(r) => FeedbackLookup {
+            reservation_id: res_id,
+            rating: Some(r.get::<i32, _>("rating")),
+            comment: r.get::<Option<String>, _>("comment"),
+            submitted_at: Some(r.get::<chrono::DateTime<chrono::Utc>, _>("submitted_at")),
+            updated_at: Some(r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at")),
+        },
+        None => FeedbackLookup {
+            reservation_id: res_id,
+            rating: None,
+            comment: None,
+            submitted_at: None,
+            updated_at: None,
+        },
     }))
 }
 // ── Guest payment methods (saved bill8 token references) ──────────────────
@@ -656,7 +674,7 @@ pub async fn get_feedback(
     get,
     path = "/v1/properties/{property_id}/payment-methods",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "The signed-in guest's saved payment methods", body = GuestPaymentMethodList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -672,7 +690,7 @@ pub async fn list_payment_methods(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GuestPaymentMethodList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -696,15 +714,17 @@ pub async fn list_payment_methods(
     .await
     .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        json!({ "items": rows.iter().map(payment_method_json).collect::<Vec<_>>() }),
-    ))
+    Ok(Json(GuestPaymentMethodList {
+        items: rows.iter().map(payment_method_from_row).collect(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/payment-methods",
+    request_body = CreateGuestPaymentMethodRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Saved payment method", body = GuestPaymentMethod),
+        (status = 400, description = "payment_method_id and label required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -718,8 +738,8 @@ pub async fn create_payment_method(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<CreateGuestPaymentMethodRequest>,
+) -> Result<Json<GuestPaymentMethod>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -731,25 +751,18 @@ pub async fn create_payment_method(
     let env_id = resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let token_ref = req
-        .get("payment_method_id")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "payment_method_id required (bill8 token reference)".into(),
-            )
-        })?;
-    let label = req
-        .get("label")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "label required".into()))?;
-    let is_default = req
-        .get("is_default")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    if req.payment_method_id.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "payment_method_id required (bill8 token reference)".into(),
+        ));
+    }
+    let token_ref: &str = req.payment_method_id.as_str();
+    let label: &str = req.label.as_str();
+    if label.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "label required".into()));
+    }
+    let is_default = req.is_default;
     let row = sqlx::query(
         "INSERT INTO pms.guest_payment_methods (env_id, property_id, sentin8_auth_user_id, label, payment_method_id, is_default)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -774,15 +787,16 @@ pub async fn create_payment_method(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(payment_method_json(&row)))
+    Ok(Json(payment_method_from_row(&row)))
 }
 #[utoipa::path(
     delete,
     path = "/v1/properties/{property_id}/payment-methods/{method_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Payment method removed"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Payment method not found"),
     ),
     security(),
     tag = "pms",
@@ -822,24 +836,27 @@ pub async fn delete_payment_method(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn payment_method_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
-    json!({
-        "id": r.get::<Uuid, _>("id"),
-        "label": r.get::<String, _>("label"),
-        "payment_method_id": r.get::<String, _>("payment_method_id"),
-        "is_default": r.get::<bool, _>("is_default"),
-        "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    })
+fn payment_method_from_row(r: &sqlx::postgres::PgRow) -> GuestPaymentMethod {
+    GuestPaymentMethod {
+        id: r.get::<Uuid, _>("id"),
+        label: r.get::<String, _>("label"),
+        payment_method_id: r.get::<String, _>("payment_method_id"),
+        is_default: r.get::<bool, _>("is_default"),
+        created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    }
 }
 
 // ── Reservation ↔ guest linking (anonymous bookings → signed-in profile) ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/reservations/{res_id}/link-guest",
+    request_body = LinkGuestRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Guest-linking result", body = LinkGuestResult),
+        (status = 400, description = "No profile bound to this session; supply target_profile_id"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Reservation not found (or has no booker profile)"),
     ),
     security(),
     tag = "pms",
@@ -857,8 +874,8 @@ pub async fn link_reservation_guest(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, res_id)): Path<(Uuid, Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<LinkGuestRequest>,
+) -> Result<Json<LinkGuestResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -887,7 +904,7 @@ pub async fn link_reservation_guest(
 
     // The signed-in guest's profile - resolved by the session subject via the
     // loyalty-number binding, or the caller-supplied target profile id.
-    let target_profile_id: Uuid = match req.get("target_profile_id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()) {
+    let target_profile_id: Uuid = match req.target_profile_id {
         Some(id) => id,
         None => sqlx::query(
             "SELECT id FROM pms.guest_profiles WHERE property_id = $1 AND preferences->>'auth_user_id' = $2 ORDER BY created_at LIMIT 1",
@@ -902,10 +919,13 @@ pub async fn link_reservation_guest(
     };
 
     if booker_profile_id == target_profile_id {
-        return Ok(Json(json!({
-            "linked": true, "already_linked": true,
-            "reservation_id": res_id, "guest_profile_id": target_profile_id,
-        })));
+        return Ok(Json(LinkGuestResult {
+            linked: true,
+            already_linked: true,
+            reservation_id: res_id,
+            guest_profile_id: target_profile_id,
+            booker_profile_id: Some(booker_profile_id),
+        }));
     }
 
     // Bind the session subject onto the target profile (the auth-user link
@@ -952,10 +972,11 @@ pub async fn link_reservation_guest(
 
     conn.commit().await.map_err(super::err_db)?;
 
-    Ok(Json(json!({
-        "linked": true,
-        "reservation_id": res_id,
-        "guest_profile_id": target_profile_id,
-        "booker_profile_id": booker_profile_id,
-    })))
+    Ok(Json(LinkGuestResult {
+        linked: true,
+        already_linked: false,
+        reservation_id: res_id,
+        guest_profile_id: target_profile_id,
+        booker_profile_id: Some(booker_profile_id),
+    }))
 }

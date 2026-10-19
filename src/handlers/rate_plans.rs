@@ -9,7 +9,12 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use hotel8::pms::contracts::{RatePlan, RatePlanCreate};
+use hotel8::pms::contracts::{
+    LinkCompanyRequest, LinkCompanyResult, NegotiatedRatePlan, NegotiatedRatePlanList,
+    PackageCreateRequest, PackageCreated, PackageDetailList, PackageDetailView,
+    PromoValidateRequest, PromoValidation, RatePlan, RatePlanCreate, ScheduleCreateRequest,
+    ScheduleCreated, ScheduleList, ScheduleView,
+};
 use sqlx::Row;
 
 /// `POST /v1/properties/{property_id}/rate-plans`
@@ -119,9 +124,10 @@ pub async fn list_rate_plans(
     get,
     path = "/v1/properties/{property_id}/rate-plans/{plan_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = RatePlan),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Rate plan not found"),
     ),
     security(),
     tag = "pms",
@@ -186,8 +192,10 @@ fn row_to_rate_plan(row: &sqlx::postgres::PgRow) -> RatePlan {
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules",
+    request_body = ScheduleCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - schedule created (deduped per plan/room-type/window)", body = ScheduleCreated),
+        (status = 400, description = "room_type_id required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -199,8 +207,8 @@ pub async fn create_rate_schedule(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, plan_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ScheduleCreateRequest>,
+) -> Result<Json<ScheduleCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -212,27 +220,28 @@ pub async fn create_rate_schedule(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let room_type_id: uuid::Uuid = req
-        .get("room_type_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "room_type_id required".to_string()))?;
+    let room_type_id: uuid::Uuid = req.room_type_id;
     // Dates bind as chrono::NaiveDate (never text) - a "date = text"
     // operator error came from untyped string binds reaching a date comparison.
-    let parse_date = |v: Option<&serde_json::Value>, fallback: &'static str| -> chrono::NaiveDate {
-        v.and_then(|x| x.as_str())
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .unwrap_or_else(|| chrono::NaiveDate::parse_from_str(fallback, "%Y-%m-%d").unwrap())
+    let parse_date = |raw: &str, fallback: &'static str| -> chrono::NaiveDate {
+        chrono::NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+            .unwrap_or_else(|_| chrono::NaiveDate::parse_from_str(fallback, "%Y-%m-%d").unwrap())
     };
-    let start_date = parse_date(req.get("start_date"), "2020-01-01");
-    let end_date = parse_date(req.get("end_date"), "2030-12-31");
-    let rate_amount = req
-        .get("rate_amount")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
-    let days_of_week = serde_json::to_value(req.get("days_of_week").cloned().unwrap_or(
-        serde_json::json!(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]),
-    ))
+    let start_date = parse_date(&req.start_date, "2020-01-01");
+    let end_date = parse_date(&req.end_date, "2030-12-31");
+    let days_of_week = serde_json::to_value(if req.days_of_week.is_empty() {
+        vec![
+            "MON".to_string(),
+            "TUE".to_string(),
+            "WED".to_string(),
+            "THU".to_string(),
+            "FRI".to_string(),
+            "SAT".to_string(),
+            "SUN".to_string(),
+        ]
+    } else {
+        req.days_of_week.clone()
+    })
     .unwrap_or(serde_json::json!([
         "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
     ]));
@@ -240,12 +249,12 @@ pub async fn create_rate_schedule(
         SELECT $1, $2, $3, $4::date, $5::date, $6, $7::numeric, $8::numeric, $9::numeric, $10::numeric, $11::numeric, $12 WHERE NOT EXISTS (SELECT 1 FROM pms.rate_schedules WHERE rate_plan_id = $2 AND room_type_id = $3 AND start_date = $4::date AND end_date = $5::date)
         RETURNING id, start_date, end_date, rate_amount::text as rate_amount")
         .bind(sqlx::query("SELECT property_id FROM pms.rate_plans WHERE id = $1").bind(plan_id).fetch_one(&mut *conn).await.map_err(super::err_db)?.get::<uuid::Uuid, _>("property_id"))
-        .bind(plan_id).bind(room_type_id).bind(start_date).bind(end_date).bind(&days_of_week).bind(rate_amount)
-        .bind(req.get("rate_amount_single").and_then(|v| v.as_str()))
-        .bind(req.get("rate_amount_double").and_then(|v| v.as_str()))
-        .bind(req.get("rate_amount_extra_adult").and_then(|v| v.as_str()))
-        .bind(req.get("rate_amount_extra_child").and_then(|v| v.as_str()))
-        .bind(req.get("package_code").and_then(|v| v.as_str()))
+        .bind(plan_id).bind(room_type_id).bind(start_date).bind(end_date).bind(&days_of_week).bind(&req.rate_amount)
+        .bind(req.rate_amount_single.as_deref())
+        .bind(req.rate_amount_double.as_deref())
+        .bind(req.rate_amount_extra_adult.as_deref())
+        .bind(req.rate_amount_extra_child.as_deref())
+        .bind(req.package_code.as_deref())
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
     crate::event_emit::emit_tx(
@@ -258,15 +267,20 @@ pub async fn create_rate_schedule(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "rate_plan_id": plan_id, "room_type_id": room_type_id, "start_date": row.get::<chrono::NaiveDate, _>("start_date"), "end_date": row.get::<chrono::NaiveDate, _>("end_date"), "rate_amount": row.get::<String, _>("rate_amount") }),
-    ))
+    Ok(Json(ScheduleCreated {
+        id,
+        rate_plan_id: plan_id,
+        room_type_id,
+        start_date: row.get::<chrono::NaiveDate, _>("start_date"),
+        end_date: row.get::<chrono::NaiveDate, _>("end_date"),
+        rate_amount: row.get::<String, _>("rate_amount"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - schedules ordered by start_date", body = ScheduleList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -278,7 +292,7 @@ pub async fn list_rate_schedules(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, plan_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ScheduleList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -292,30 +306,29 @@ pub async fn list_rate_schedules(
     super::set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, room_type_id, start_date, end_date, days_of_week, rate_amount::text as rate_amount, rate_amount_single::text as rate_amount_single, rate_amount_double::text as rate_amount_double, package_code FROM pms.rate_schedules WHERE rate_plan_id = $1 ORDER BY start_date")
         .bind(plan_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ScheduleView> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "room_type_id": r.get::<uuid::Uuid, _>("room_type_id"),
-                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-                "days_of_week": r.get::<serde_json::Value, _>("days_of_week"),
-                "rate_amount": r.get::<String, _>("rate_amount"),
-                "rate_amount_single": r.get::<Option<String>, _>("rate_amount_single"),
-                "rate_amount_double": r.get::<Option<String>, _>("rate_amount_double"),
-                "package_code": r.get::<Option<String>, _>("package_code"),
-            })
+        .map(|r| ScheduleView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            room_type_id: r.get::<uuid::Uuid, _>("room_type_id"),
+            start_date: r.get::<chrono::NaiveDate, _>("start_date"),
+            end_date: r.get::<chrono::NaiveDate, _>("end_date"),
+            days_of_week: serde_json::from_value(r.get::<serde_json::Value, _>("days_of_week"))
+                .unwrap_or_default(),
+            rate_amount: r.get::<String, _>("rate_amount"),
+            rate_amount_single: r.get::<Option<String>, _>("rate_amount_single"),
+            rate_amount_double: r.get::<Option<String>, _>("rate_amount_double"),
+            package_code: r.get::<Option<String>, _>("package_code"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ScheduleList { items }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/properties/{property_id}/rate-plans/{plan_id}/schedules/{schedule_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Schedule deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -352,8 +365,9 @@ pub async fn delete_rate_schedule(
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/packages",
+    request_body = PackageCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = PackageCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -365,8 +379,8 @@ pub async fn create_package(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PackageCreateRequest>,
+) -> Result<Json<PackageCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -378,20 +392,11 @@ pub async fn create_package(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let package_code = req
-        .get("package_code")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let package_name = req
-        .get("package_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let quantity: i32 = req.get("quantity").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-    let price = req.get("price").and_then(|v| v.as_str()).unwrap_or("0");
-    let per_stay = req
-        .get("per_stay")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let package_code = req.package_code.as_str();
+    let package_name = req.package_name.as_str();
+    let quantity: i32 = req.quantity;
+    let price = req.price.as_str();
+    let per_stay = req.per_stay;
     let row = sqlx::query("INSERT INTO pms.packages (property_id, package_code, package_name, quantity, price, per_stay) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, package_code, package_name, quantity, price::text as price, per_stay")
         .bind(property_id).bind(package_code).bind(package_name).bind(quantity).bind(price).bind(per_stay)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
@@ -406,15 +411,20 @@ pub async fn create_package(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "package_code": row.get::<String, _>("package_code"), "package_name": row.get::<String, _>("package_name"), "quantity": row.get::<i32, _>("quantity"), "price": row.get::<String, _>("price"), "per_stay": row.get::<bool, _>("per_stay") }),
-    ))
+    Ok(Json(PackageCreated {
+        id,
+        package_code: row.get::<String, _>("package_code"),
+        package_name: row.get::<String, _>("package_name"),
+        quantity: row.get::<i32, _>("quantity"),
+        price: row.get::<String, _>("price"),
+        per_stay: row.get::<bool, _>("per_stay"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/packages",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = PackageDetailList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -426,7 +436,7 @@ pub async fn list_packages(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PackageDetailList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -440,13 +450,20 @@ pub async fn list_packages(
     super::set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, package_code, package_name, quantity, price::text as price, per_stay, is_active FROM pms.packages WHERE property_id = $1 ORDER BY package_code")
         .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "package_code": r.get::<String, _>("package_code"),
-        "package_name": r.get::<String, _>("package_name"), "quantity": r.get::<i32, _>("quantity"),
-        "price": r.get::<String, _>("price"), "per_stay": r.get::<bool, _>("per_stay"), "is_active": r.get::<bool, _>("is_active"),
-    })).collect();
+    let items: Vec<PackageDetailView> = rows
+        .iter()
+        .map(|r| PackageDetailView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            package_code: r.get::<String, _>("package_code"),
+            package_name: r.get::<String, _>("package_name"),
+            quantity: r.get::<i32, _>("quantity"),
+            price: r.get::<String, _>("price"),
+            per_stay: r.get::<bool, _>("per_stay"),
+            is_active: r.get::<bool, _>("is_active"),
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(PackageDetailList { items }))
 }
 
 // ── Negotiated Rate Plans (corporate, government, AAA) with company profile linking ──
@@ -454,7 +471,7 @@ pub async fn list_packages(
     get,
     path = "/v1/properties/{property_id}/negotiated-rate-plans",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - negotiated (corporate / government / AAA) rate plans", body = NegotiatedRatePlanList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -466,7 +483,7 @@ pub async fn list_negotiated_rate_plans(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<NegotiatedRatePlanList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -489,32 +506,33 @@ pub async fn list_negotiated_rate_plans(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<NegotiatedRatePlan> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "rate_plan_code": r.get::<String, _>("rate_plan_code"),
-                "rate_plan_name": r.get::<String, _>("rate_plan_name"),
-                "rate_category": r.get::<String, _>("rate_category"),
-                "currency_code": r.get::<String, _>("currency_code"),
-                "is_active": r.get::<bool, _>("is_active"),
-                "market_code": r.get::<Option<String>, _>("market_code"),
-                "source_code": r.get::<Option<String>, _>("source_code"),
-                "description": r.get::<Option<String>, _>("description"),
-            })
+        .map(|r| NegotiatedRatePlan {
+            id: r.get::<uuid::Uuid, _>("id"),
+            rate_plan_code: r.get::<String, _>("rate_plan_code"),
+            rate_plan_name: r.get::<String, _>("rate_plan_name"),
+            rate_category: r.get::<String, _>("rate_category"),
+            currency_code: r.get::<String, _>("currency_code"),
+            is_active: r.get::<bool, _>("is_active"),
+            market_code: r.get::<Option<String>, _>("market_code"),
+            source_code: r.get::<Option<String>, _>("source_code"),
+            description: r.get::<Option<String>, _>("description"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(NegotiatedRatePlanList { items }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/negotiated-rate-plans/{rate_plan_id}/link-company",
+    request_body = LinkCompanyRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - link stored on the company profile preferences", body = LinkCompanyResult),
+        (status = 400, description = "rate plan is not negotiated"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Rate plan or company profile not found"),
     ),
     security(),
     tag = "pms",
@@ -524,8 +542,8 @@ pub async fn link_negotiated_rate_to_company(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, rate_plan_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<LinkCompanyRequest>,
+) -> Result<Json<LinkCompanyResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -537,12 +555,7 @@ pub async fn link_negotiated_rate_to_company(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let company_profile_id = req
-        .get("company_profile_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::err_bad_request("company_profile_id required"))?;
-    let company_uuid = uuid::Uuid::parse_str(company_profile_id)
-        .map_err(|e| super::err_bad_request(&format!("invalid company_profile_id: {e}")))?;
+    let company_uuid = req.company_profile_id;
     // Verify the rate plan is negotiated and belongs to this property
     let rp = sqlx::query(
         "SELECT id, is_negotiated FROM pms.rate_plans WHERE id = $1 AND property_id = $2",
@@ -569,17 +582,20 @@ pub async fn link_negotiated_rate_to_company(
     crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:negotiated_rate:linked", serde_json::json!({ "property_id": property_id, "rate_plan_id": rate_plan_id, "company_profile_id": company_uuid }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "linked": true, "rate_plan_id": rate_plan_id, "company_profile_id": company_uuid }),
-    ))
+    Ok(Json(LinkCompanyResult {
+        linked: true,
+        rate_plan_id,
+        company_profile_id: company_uuid,
+    }))
 }
 
 // ── Promo Code validation ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/promo/validate",
+    request_body = PromoValidateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - validation result; not-found carries only `reason`, a valid plan carries the plan ref + warnings", body = PromoValidation),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -591,8 +607,8 @@ pub async fn validate_promo_code(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PromoValidateRequest>,
+) -> Result<Json<PromoValidation>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -604,12 +620,9 @@ pub async fn validate_promo_code(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let promo_code = req
-        .get("promo_code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::err_bad_request("promo_code required"))?;
-    let check_in = req.get("check_in").and_then(|v| v.as_str());
-    let check_out = req.get("check_out").and_then(|v| v.as_str());
+    let promo_code = req.promo_code.as_str();
+    let check_in = req.check_in.as_deref();
+    let check_out = req.check_out.as_deref();
     // Look up the rate plan with RATE_CATEGORY = 'PROMO' and matching code
     let row = sqlx::query(
         "SELECT id, rate_plan_code, rate_plan_name, rate_category, currency_code, is_active, min_los, max_los, min_advance_booking
@@ -621,9 +634,15 @@ pub async fn validate_promo_code(
     let rp = match row {
         Some(r) => r,
         None => {
-            return Ok(Json(
-                serde_json::json!({ "valid": false, "reason": "promo code not found or inactive" }),
-            ))
+            return Ok(Json(PromoValidation {
+                valid: false,
+                reason: Some("promo code not found or inactive".into()),
+                rate_plan_id: None,
+                rate_plan_code: None,
+                rate_plan_name: None,
+                currency_code: None,
+                warnings: None,
+            }))
         }
     };
     // Check MinLOS / MinAdvanceBooking if dates provided
@@ -666,12 +685,13 @@ pub async fn validate_promo_code(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "valid": valid,
-        "rate_plan_id": rp.get::<uuid::Uuid, _>("id"),
-        "rate_plan_code": rp.get::<String, _>("rate_plan_code"),
-        "rate_plan_name": rp.get::<String, _>("rate_plan_name"),
-        "currency_code": rp.get::<String, _>("currency_code"),
-        "warnings": warnings,
-    })))
+    Ok(Json(PromoValidation {
+        valid,
+        reason: None,
+        rate_plan_id: Some(rp.get::<uuid::Uuid, _>("id")),
+        rate_plan_code: Some(rp.get::<String, _>("rate_plan_code")),
+        rate_plan_name: Some(rp.get::<String, _>("rate_plan_name")),
+        currency_code: Some(rp.get::<String, _>("currency_code")),
+        warnings: Some(warnings),
+    }))
 }

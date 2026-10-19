@@ -9,15 +9,20 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use hotel8::pms::contracts::{Room, RoomCreate, RoomStatusUpdate, RoomType, RoomTypeCreate};
+use hotel8::pms::contracts::{
+    InventoryList, InventoryRow, ItemCreateRequest, ItemList, ItemUpdateRequest, ItemView,
+    Room, RoomCreate, RoomStatusUpdate, RoomType, RoomTypeCreate, SellLimitResult,
+    SellLimitUpdateRequest,
+};
 use sqlx::Row;
 
 // ── Room Types ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/room-types",
+    request_body = RoomTypeCreate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Room type created", body = RoomType),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -73,7 +78,7 @@ pub async fn create_room_type(
     get,
     path = "/v1/properties/{property_id}/room-types",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Room types of the property", body = [RoomType]),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -111,7 +116,7 @@ pub async fn list_room_types(
     delete,
     path = "/v1/properties/{property_id}/room-types/{type_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Room type deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -149,8 +154,9 @@ pub async fn delete_room_type(
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/rooms",
+    request_body = RoomCreate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Room created (VACANT / DIRTY by default)", body = Room),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -207,7 +213,7 @@ pub async fn create_room(
     get,
     path = "/v1/properties/{property_id}/rooms",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Rooms of the property", body = [Room]),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -242,8 +248,10 @@ pub async fn list_rooms(
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/rooms/{room_number}",
+    request_body = RoomStatusUpdate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Room with the updated statuses", body = Room),
+        (status = 404, description = "Room not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -385,7 +393,7 @@ pub fn validate_room_status_matrix(fo: &str, hk: &str) -> Result<(), String> {
     get,
     path = "/v1/properties/{property_id}/inventory",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Inventory rows for the date window", body = InventoryList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -398,7 +406,7 @@ pub async fn get_inventory(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<InventoryList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -421,30 +429,30 @@ pub async fn get_inventory(
     let rows = sqlx::query("SELECT * FROM pms.inventory WHERE property_id = $1 AND date >= $2 AND date <= $3 ORDER BY date, room_type_id")
         .bind(property_id).bind(start_date).bind(end_date)
         .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<InventoryRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "property_id": r.get::<uuid::Uuid, _>("property_id"),
-                "room_type_id": r.get::<uuid::Uuid, _>("room_type_id"),
-                "date": r.get::<chrono::NaiveDate, _>("date"),
-                "physical_rooms": r.get::<i32, _>("physical_rooms"),
-                "sell_limit": r.get::<i32, _>("sell_limit"),
-                "sold_rooms": r.get::<i32, _>("sold_rooms"),
-                "available_rooms": r.get::<i32, _>("available_rooms"),
-                "out_of_order": r.get::<i32, _>("out_of_order"),
-                "out_of_service": r.get::<i32, _>("out_of_service"),
-            })
+        .map(|r| InventoryRow {
+            property_id: r.get::<uuid::Uuid, _>("property_id"),
+            room_type_id: r.get::<uuid::Uuid, _>("room_type_id"),
+            date: r.get::<chrono::NaiveDate, _>("date"),
+            physical_rooms: r.get::<i32, _>("physical_rooms"),
+            sell_limit: r.get::<i32, _>("sell_limit"),
+            sold_rooms: r.get::<i32, _>("sold_rooms"),
+            available_rooms: r.get::<i32, _>("available_rooms"),
+            out_of_order: r.get::<i32, _>("out_of_order"),
+            out_of_service: r.get::<i32, _>("out_of_service"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(InventoryList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/inventory/sell-limits",
+    request_body = SellLimitUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Sell limit applied over the date window", body = SellLimitResult),
+        (status = 400, description = "room_type_id required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -456,8 +464,8 @@ pub async fn update_sell_limit(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<SellLimitUpdateRequest>,
+) -> Result<Json<SellLimitResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -469,21 +477,11 @@ pub async fn update_sell_limit(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let room_type_id: uuid::Uuid = req
-        .get("room_type_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "room_type_id required".to_string()))?;
-    let start_date = req
-        .get("start_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("2020-01-01");
-    let end_date = req
-        .get("end_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("2030-12-31");
-    let sell_limit: i32 = req.get("sell_limit").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let reason = req.get("reason").and_then(|v| v.as_str()).unwrap_or("");
+    let room_type_id: uuid::Uuid = req.room_type_id;
+    let start_date = req.start_date;
+    let end_date = req.end_date;
+    let sell_limit: i32 = req.sell_limit;
+    let reason = req.reason.unwrap_or_default();
 
     let _ = sqlx::query(
         "INSERT INTO pms.inventory (property_id, room_type_id, date, physical_rooms, sell_limit, sold_rooms, available_rooms, out_of_order, out_of_service)
@@ -503,17 +501,21 @@ pub async fn update_sell_limit(
     crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:inventory:sell_limit_changed", serde_json::json!({ "property_id": property_id, "room_type_id": room_type_id, "sell_limit": sell_limit, "reason": reason }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "status": "updated", "room_type_id": room_type_id, "sell_limit": sell_limit }),
-    ))
+    Ok(Json(SellLimitResult {
+        status: "updated".to_string(),
+        room_type_id,
+        sell_limit,
+    }))
 }
 
 // ── Item Inventory (non-room sellable items: amenity kits, minibar, parking passes, etc.) ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/items",
+    request_body = ItemCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Item created", body = ItemView),
+        (status = 400, description = "item_code and item_name required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -525,8 +527,8 @@ pub async fn create_item(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ItemCreateRequest>,
+) -> Result<Json<ItemView>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -538,37 +540,19 @@ pub async fn create_item(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let item_code = req
-        .get("item_code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::err_bad_request("item_code required"))?;
-    let item_name = req
-        .get("item_name")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::err_bad_request("item_name required"))?;
-    let category = req
-        .get("category")
-        .and_then(|v| v.as_str())
-        .unwrap_or("GENERAL");
-    let unit_price = req
-        .get("unit_price")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
-    let unit_cost = req.get("unit_cost").and_then(|v| v.as_str()).unwrap_or("0");
-    let stock_qty: i32 = req.get("stock_qty").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let reorder_point: i32 = req
-        .get("reorder_point")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
-    let is_sellable = req
-        .get("is_sellable")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
+    let item_code = req.item_code;
+    let item_name = req.item_name;
+    let category = req.category;
+    let unit_price = req.unit_price;
+    let unit_cost = req.unit_cost;
+    let stock_qty: i32 = req.stock_qty;
+    let reorder_point: i32 = req.reorder_point;
+    let is_sellable = req.is_sellable;
     let row = sqlx::query(
         "INSERT INTO pms.items (property_id, item_code, item_name, category, unit_price, unit_cost, stock_qty, reorder_point, is_sellable)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, item_code, item_name, category, unit_price::text as unit_price, unit_cost::text as unit_cost, stock_qty, reorder_point, is_sellable",
     )
-    .bind(property_id).bind(item_code).bind(item_name).bind(category).bind(unit_price).bind(unit_cost).bind(stock_qty).bind(reorder_point).bind(is_sellable)
+    .bind(property_id).bind(&item_code).bind(&item_name).bind(&category).bind(&unit_price).bind(&unit_cost).bind(stock_qty).bind(reorder_point).bind(is_sellable)
     .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
     crate::event_emit::emit_tx(
@@ -581,18 +565,23 @@ pub async fn create_item(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id, "item_code": row.get::<String, _>("item_code"), "item_name": row.get::<String, _>("item_name"),
-        "category": row.get::<String, _>("category"), "unit_price": row.get::<String, _>("unit_price"),
-        "unit_cost": row.get::<String, _>("unit_cost"), "stock_qty": row.get::<i32, _>("stock_qty"),
-        "reorder_point": row.get::<i32, _>("reorder_point"), "is_sellable": row.get::<bool, _>("is_sellable"),
-    })))
+    Ok(Json(ItemView {
+        id,
+        item_code: row.get::<String, _>("item_code"),
+        item_name: row.get::<String, _>("item_name"),
+        category: row.get::<String, _>("category"),
+        unit_price: row.get::<String, _>("unit_price"),
+        unit_cost: row.get::<String, _>("unit_cost"),
+        stock_qty: row.get::<i32, _>("stock_qty"),
+        reorder_point: row.get::<i32, _>("reorder_point"),
+        is_sellable: row.get::<bool, _>("is_sellable"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/items",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Sellable/stock items of the property", body = ItemList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -604,7 +593,7 @@ pub async fn list_items(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ItemList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -621,21 +610,30 @@ pub async fn list_items(
          FROM pms.items WHERE property_id = $1 ORDER BY item_code",
     )
     .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "item_code": r.get::<String, _>("item_code"),
-        "item_name": r.get::<String, _>("item_name"), "category": r.get::<String, _>("category"),
-        "unit_price": r.get::<String, _>("unit_price"), "unit_cost": r.get::<String, _>("unit_cost"),
-        "stock_qty": r.get::<i32, _>("stock_qty"), "reorder_point": r.get::<i32, _>("reorder_point"),
-        "is_sellable": r.get::<bool, _>("is_sellable"),
-    })).collect();
+    let items: Vec<ItemView> = rows
+        .iter()
+        .map(|r| ItemView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            item_code: r.get::<String, _>("item_code"),
+            item_name: r.get::<String, _>("item_name"),
+            category: r.get::<String, _>("category"),
+            unit_price: r.get::<String, _>("unit_price"),
+            unit_cost: r.get::<String, _>("unit_cost"),
+            stock_qty: r.get::<i32, _>("stock_qty"),
+            reorder_point: r.get::<i32, _>("reorder_point"),
+            is_sellable: r.get::<bool, _>("is_sellable"),
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ItemList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/items/{item_id}",
+    request_body = ItemUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Item with the updated fields", body = ItemView),
+        (status = 404, description = "Item not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -647,8 +645,8 @@ pub async fn update_item(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, item_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ItemUpdateRequest>,
+) -> Result<Json<ItemView>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -660,18 +658,12 @@ pub async fn update_item(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let item_name = req.get("item_name").and_then(|v| v.as_str());
-    let unit_price = req.get("unit_price").and_then(|v| v.as_str());
-    let unit_cost = req.get("unit_cost").and_then(|v| v.as_str());
-    let stock_qty: Option<i32> = req
-        .get("stock_qty")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32);
-    let reorder_point: Option<i32> = req
-        .get("reorder_point")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32);
-    let is_sellable = req.get("is_sellable").and_then(|v| v.as_bool());
+    let item_name = req.item_name;
+    let unit_price = req.unit_price;
+    let unit_cost = req.unit_cost;
+    let stock_qty: Option<i32> = req.stock_qty;
+    let reorder_point: Option<i32> = req.reorder_point;
+    let is_sellable = req.is_sellable;
     let row = sqlx::query(
         "UPDATE pms.items SET
             item_name = COALESCE($3, item_name),
@@ -697,19 +689,24 @@ pub async fn update_item(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"), "item_code": row.get::<String, _>("item_code"),
-        "item_name": row.get::<String, _>("item_name"), "category": row.get::<String, _>("category"),
-        "unit_price": row.get::<String, _>("unit_price"), "unit_cost": row.get::<String, _>("unit_cost"),
-        "stock_qty": row.get::<i32, _>("stock_qty"), "reorder_point": row.get::<i32, _>("reorder_point"),
-        "is_sellable": row.get::<bool, _>("is_sellable"),
-    })))
+    Ok(Json(ItemView {
+        id: row.get::<uuid::Uuid, _>("id"),
+        item_code: row.get::<String, _>("item_code"),
+        item_name: row.get::<String, _>("item_name"),
+        category: row.get::<String, _>("category"),
+        unit_price: row.get::<String, _>("unit_price"),
+        unit_cost: row.get::<String, _>("unit_cost"),
+        stock_qty: row.get::<i32, _>("stock_qty"),
+        reorder_point: row.get::<i32, _>("reorder_point"),
+        is_sellable: row.get::<bool, _>("is_sellable"),
+    }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/properties/{property_id}/items/{item_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Item deleted"),
+        (status = 404, description = "Item not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),

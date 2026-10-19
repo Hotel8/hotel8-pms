@@ -10,6 +10,18 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{
+    AsyncJobRequest,
+    AsyncJobStatus, CashieringAsyncRequest, ChannelPerformanceReport, ChannelPerformanceRow,
+    CrmAsyncRequest, DeliveryConfig, EodException, EodExceptionList, EodReportSummary,
+    EodRetryResult,
+    EodStep, EndOfDayResult, ExternalSystemConfig, GuestHistoryReport, GuestHistoryRow,
+    HousekeepingAnalysisReport, HousekeepingAnalysisRow, InventoryAsyncRequest, MarketSegmentReport,
+    MarketSegmentRow, OccupancyDay, OccupancyReport, ParAsyncRequest, PropertyConfig,
+    PropertyModule, PropertyModuleList, RateAnalysisReport,
+    RateAnalysisRow, ReservationSummaryReport, RevenueLine, RevenueReport, SalesCateringReport,
+    SalesCateringRow, UpdateAcknowledgement,
+};
 use sqlx::Row;
 
 /// `GET /v1/properties/{property_id}/reports/occupancy`
@@ -17,7 +29,7 @@ use sqlx::Row;
     get,
     path = "/v1/properties/{property_id}/reports/occupancy",
     responses(
-        (status = 200, description = "Occupancy report", body = serde_json::Value),
+        (status = 200, description = "Occupancy report", body = OccupancyReport),
         (status = 403, description = "Missing pms:admin scope"),
     ),
     security(("pms:admin" = [])),
@@ -28,7 +40,7 @@ pub async fn get_occupancy_report(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<OccupancyReport>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -55,24 +67,23 @@ pub async fn get_occupancy_report(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<OccupancyDay> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "date": r.get::<chrono::NaiveDate, _>("arrival_date"),
-                "reservations": r.get::<i64, _>("reservations"),
-                "guests": r.get::<i64, _>("guests"),
-            })
+        .map(|r| OccupancyDay {
+            date: r.get::<chrono::NaiveDate, _>("arrival_date"),
+            reservations: r.get::<i64, _>("reservations"),
+            guests: r.get::<i64, _>("guests"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(OccupancyReport { items }))
 }
+/// `GET /v1/properties/{property_id}/reports/revenue`
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/reports/revenue",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = RevenueReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -85,7 +96,7 @@ pub async fn get_revenue_report(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<RevenueReport>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -112,23 +123,22 @@ pub async fn get_revenue_report(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<RevenueLine> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "charge_code": r.get::<String, _>("charge_code"),
-                "total": r.get::<String, _>("total"),
-            })
+        .map(|r| RevenueLine {
+            charge_code: r.get::<String, _>("charge_code"),
+            total: r.get::<String, _>("total"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(RevenueReport { items }))
 }
+/// `GET /v1/properties/{property_id}/config`
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/config",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = PropertyConfig),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -140,7 +150,7 @@ pub async fn get_property_config(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PropertyConfig>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -161,14 +171,14 @@ pub async fn get_property_config(
             e => super::err_db(e),
         })?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "property_code": row.get::<String, _>("property_code"),
-        "property_name": row.get::<String, _>("property_name"),
-        "timezone": row.get::<String, _>("timezone"),
-        "currency_code": row.get::<String, _>("currency_code"),
-        "languages": row.get::<serde_json::Value, _>("languages"),
-    })))
+    Ok(Json(PropertyConfig {
+        id: row.get::<uuid::Uuid, _>("id"),
+        property_code: row.get::<String, _>("property_code"),
+        property_name: row.get::<String, _>("property_name"),
+        timezone: row.get::<String, _>("timezone"),
+        currency_code: row.get::<String, _>("currency_code"),
+        languages: row.get::<serde_json::Value, _>("languages"),
+    }))
 }
 
 // ── -End of Day workflow ──
@@ -176,7 +186,7 @@ pub async fn get_property_config(
     post,
     path = "/v1/properties/{property_id}/end-of-day",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = EndOfDayResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -188,7 +198,7 @@ pub async fn end_of_day(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EndOfDayResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -204,7 +214,7 @@ pub async fn end_of_day(
     let eod_log = sqlx::query("INSERT INTO pms.eod_log (property_id, business_date, status, step) VALUES ($1, $2, 'IN_PROGRESS', 'START') RETURNING id")
         .bind(property_id).bind(business_date).fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let eod_id: uuid::Uuid = eod_log.get("id");
-    let mut steps: Vec<serde_json::Value> = Vec::new();
+    let mut steps: Vec<EodStep> = Vec::new();
 
     // Step 1 - Pre-EOD checks
     sqlx::query("UPDATE pms.eod_log SET step = 'PRE_EOD_CHECKS' WHERE id = $1")
@@ -215,7 +225,12 @@ pub async fn end_of_day(
     let unbalanced = sqlx::query("SELECT COUNT(*)::int as cnt FROM pms.reservations r WHERE r.property_id = $1 AND r.status = 'CHECKED_IN' AND NOT EXISTS (SELECT 1 FROM pms.folios f WHERE f.reservation_id = r.id AND f.status = 'OPEN')")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let unbalanced_count: i32 = unbalanced.get("cnt");
-    steps.push(serde_json::json!({ "step": "pre_eod_checks", "status": "passed", "unbalanced_folios": unbalanced_count }));
+    steps.push(EodStep {
+        step: "pre_eod_checks".into(),
+        status: "passed".into(),
+        unbalanced_folios: Some(unbalanced_count),
+        ..Default::default()
+    });
 
     // Step 2 - Post room charges for in-house guests
     sqlx::query("UPDATE pms.eod_log SET step = 'POST_ROOM_CHARGES' WHERE id = $1")
@@ -237,7 +252,12 @@ pub async fn end_of_day(
     .fetch_all(&mut *conn)
     .await;
     let _room_charges_posted = room_charge_str;
-    steps.push(serde_json::json!({ "step": "post_room_charges", "status": "completed", "charges_posted": posted.as_ref().map(|r| r.len()).unwrap_or(0) }));
+    steps.push(EodStep {
+        step: "post_room_charges".into(),
+        status: "completed".into(),
+        charges_posted: Some(posted.as_ref().map(|r| r.len()).unwrap_or(0) as i64),
+        ..Default::default()
+    });
 
     // Step 3 - Reconcile folios
     sqlx::query("UPDATE pms.eod_log SET step = 'RECONCILE_FOLIOS' WHERE id = $1")
@@ -245,7 +265,11 @@ pub async fn end_of_day(
         .execute(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    steps.push(serde_json::json!({ "step": "reconcile_folios", "status": "completed" }));
+    steps.push(EodStep {
+        step: "reconcile_folios".into(),
+        status: "completed".into(),
+        ..Default::default()
+    });
 
     // Step 4 - Process credit card batch (via Payments) - placeholder
     sqlx::query("UPDATE pms.eod_log SET step = 'CC_BATCH_SETTLEMENT' WHERE id = $1")
@@ -253,7 +277,12 @@ pub async fn end_of_day(
         .execute(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    steps.push(serde_json::json!({ "step": "cc_batch_settlement", "status": "completed", "note": "Payments integration pending" }));
+    steps.push(EodStep {
+        step: "cc_batch_settlement".into(),
+        status: "completed".into(),
+        note: Some("Payments integration pending".into()),
+        ..Default::default()
+    });
 
     // Step 5 - Roll business date forward
     sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1")
@@ -261,7 +290,12 @@ pub async fn end_of_day(
         .execute(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    steps.push(serde_json::json!({ "step": "roll_business_date", "status": "completed", "new_date": business_date + chrono::Duration::days(1) }));
+    steps.push(EodStep {
+        step: "roll_business_date".into(),
+        status: "completed".into(),
+        new_date: Some(business_date + chrono::Duration::days(1)),
+        ..Default::default()
+    });
 
     // Step 6 - Generate reports
     sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1")
@@ -271,12 +305,19 @@ pub async fn end_of_day(
         .map_err(super::err_db)?;
     let occupancy = sqlx::query("SELECT COUNT(*)::int as occupied, (SELECT COUNT(*)::int FROM pms.rooms WHERE property_id = $1) as total FROM pms.rooms WHERE property_id = $1 AND front_office_status = 'OCCUPIED'")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
-    let report_data = serde_json::json!({
-        "business_date": business_date,
-        "occupied_rooms": occupancy.get::<i32, _>("occupied"),
-        "total_rooms": occupancy.get::<i32, _>("total"),
+    let report_summary = EodReportSummary {
+        business_date,
+        occupied_rooms: occupancy.get::<i32, _>("occupied"),
+        total_rooms: occupancy.get::<i32, _>("total"),
+    };
+    let report_data =
+        serde_json::to_value(&report_summary).map_err(|e| super::err_bad_request(&e.to_string()))?;
+    steps.push(EodStep {
+        step: "generate_reports".into(),
+        status: "completed".into(),
+        report_summary: Some(report_summary),
+        ..Default::default()
     });
-    steps.push(serde_json::json!({ "step": "generate_reports", "status": "completed", "report_summary": report_data }));
 
     // Mark EOD as completed
     sqlx::query("UPDATE pms.eod_log SET status = 'COMPLETED', step = 'DONE', completed_at = now(), report_data = $2 WHERE id = $1")
@@ -285,9 +326,13 @@ pub async fn end_of_day(
     emit_tx(&mut *conn, env_id, "hotel8:pms:eod:completed", serde_json::json!({ "property_id": property_id, "business_date": business_date, "eod_id": eod_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "eod_id": eod_id, "property_id": property_id, "business_date": business_date, "status": "COMPLETED", "steps": steps }),
-    ))
+    Ok(Json(EndOfDayResult {
+        eod_id,
+        property_id,
+        business_date,
+        status: "COMPLETED".into(),
+        steps,
+    }))
 }
 
 // ── Reservation Summary report ──
@@ -295,7 +340,7 @@ pub async fn end_of_day(
     get,
     path = "/v1/properties/{property_id}/reports/reservation-summary",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = ReservationSummaryReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -308,7 +353,7 @@ pub async fn get_reservation_summary(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ReservationSummaryReport>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -332,24 +377,26 @@ pub async fn get_reservation_summary(
         .bind(property_id).bind(start).bind(end)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "property_id": property_id,
-        "start_date": start, "end_date": end,
-        "total_reservations": rows.get::<i32, _>("total_reservations"),
-        "in_house": rows.get::<i32, _>("in_house"),
-        "checked_out": rows.get::<i32, _>("checked_out"),
-        "cancelled": rows.get::<i32, _>("cancelled"),
-        "active_reservations": rows.get::<i32, _>("active_reservations"),
-        "total_guests": rows.get::<i32, _>("total_guests"),
-    })))
+    Ok(Json(ReservationSummaryReport {
+        property_id,
+        start_date: start.into(),
+        end_date: end.into(),
+        total_reservations: rows.get::<i32, _>("total_reservations"),
+        in_house: rows.get::<i32, _>("in_house"),
+        checked_out: rows.get::<i32, _>("checked_out"),
+        cancelled: rows.get::<i32, _>("cancelled"),
+        active_reservations: rows.get::<i32, _>("active_reservations"),
+        total_guests: rows.get::<i32, _>("total_guests"),
+    }))
 }
 
 // ── -Async API Pattern ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/async",
+    request_body = AsyncJobRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 202, description = "Job accepted (Location: /v1/async/status/{job_id})", body = String),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -361,7 +408,7 @@ pub async fn create_async_job(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<AsyncJobRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
@@ -374,14 +421,8 @@ pub async fn create_async_job(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let module = req
-        .get("module")
-        .and_then(|v| v.as_str())
-        .unwrap_or("INVENTORY");
-    let operation = req
-        .get("operation")
-        .and_then(|v| v.as_str())
-        .unwrap_or("BULK_UPDATE");
+    let module = req.module.as_str();
+    let operation = req.operation.as_str();
     let row = sqlx::query("INSERT INTO pms.async_jobs (property_id, module, operation, status) VALUES ($1, $2, $3, 'IN_PROGRESS') RETURNING id")
         .bind(property_id).bind(module).bind(operation)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
@@ -401,7 +442,7 @@ pub async fn create_async_job(
     get,
     path = "/v1/async/status/{job_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = AsyncJobStatus),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -413,7 +454,7 @@ pub async fn get_async_status(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(job_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AsyncJobStatus>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -430,23 +471,31 @@ pub async fn get_async_status(
         .map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Job not found"), e => super::err_db(e) })?;
     let status: String = row.get("status");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": job_id,
-        "module": row.get::<String, _>("module"),
-        "operation": row.get::<String, _>("operation"),
-        "status": status,
-        "error_message": row.get::<Option<String>, _>("error_message"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-        "completed_at": row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
-    })))
+    Ok(Json(AsyncJobStatus {
+        id: job_id,
+        module: row.get::<String, _>("module"),
+        operation: row.get::<String, _>("operation"),
+        status,
+        error_message: row.get::<Option<String>, _>("error_message"),
+        created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        completed_at: row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
+    }))
 }
+/// The module-defined async-job result document (honest transparent
+/// wrapper over `pms.async_jobs.result`).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[serde(transparent)]
+pub struct AsyncJobResult(
+    /// The stored result document.
+    pub serde_json::Value,
+);
+
 #[utoipa::path(
     get,
     path = "/v1/async/result/{job_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Forbidden"),
+        (status = 200, description = "OK - the stored job result document; JSON shape is module-defined (passthrough of pms.async_jobs.result)", body = AsyncJobResult),
+        (status = 409, description = "Job is not completed"),
     ),
     security(),
     tag = "pms",
@@ -456,7 +505,7 @@ pub async fn get_async_result(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(job_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AsyncJobResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -485,15 +534,16 @@ pub async fn get_async_result(
     }
     let result: serde_json::Value = row.get("result");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(result))
+    Ok(Json(AsyncJobResult(result)))
 }
 
 // ── Async module-specific operations (Inventory, Cashiering, CRM, PAR) ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/async/inventory",
+    request_body = InventoryAsyncRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 202, description = "Job accepted (Location: /v1/async/status/{job_id})", body = String),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -505,20 +555,17 @@ pub async fn create_inventory_async(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<InventoryAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req
-        .get("operation")
-        .and_then(|v| v.as_str())
-        .unwrap_or("BULK_SELL_LIMIT_UPDATE")
-        .to_string();
-    create_module_async_job(&state, &headers, property_id, "INVENTORY", &operation, req).await
+    let operation = req.operation.clone();
+    create_module_async_job(&state, &headers, property_id, "INVENTORY", &operation, serde_json::to_value(req).unwrap_or_default()).await
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/async/cashiering",
+    request_body = CashieringAsyncRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 202, description = "Job accepted (Location: /v1/async/status/{job_id})", body = String),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -530,20 +577,17 @@ pub async fn create_cashiering_async(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CashieringAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req
-        .get("operation")
-        .and_then(|v| v.as_str())
-        .unwrap_or("BULK_FOLIO_POSTING")
-        .to_string();
-    create_module_async_job(&state, &headers, property_id, "CASHIERING", &operation, req).await
+    let operation = req.operation.clone();
+    create_module_async_job(&state, &headers, property_id, "CASHIERING", &operation, serde_json::to_value(req).unwrap_or_default()).await
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/async/crm",
+    request_body = CrmAsyncRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 202, description = "Job accepted (Location: /v1/async/status/{job_id})", body = String),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -555,20 +599,17 @@ pub async fn create_crm_async(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CrmAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req
-        .get("operation")
-        .and_then(|v| v.as_str())
-        .unwrap_or("PROFILE_MERGE")
-        .to_string();
-    create_module_async_job(&state, &headers, property_id, "CRM", &operation, req).await
+    let operation = req.operation.clone();
+    create_module_async_job(&state, &headers, property_id, "CRM", &operation, serde_json::to_value(req).unwrap_or_default()).await
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/async/par",
+    request_body = ParAsyncRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 202, description = "Job accepted (Location: /v1/async/status/{job_id})", body = String),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -580,14 +621,10 @@ pub async fn create_par_async(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<ParAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
-    let operation = req
-        .get("operation")
-        .and_then(|v| v.as_str())
-        .unwrap_or("PAR_REPORT_GENERATION")
-        .to_string();
-    create_module_async_job(&state, &headers, property_id, "PAR", &operation, req).await
+    let operation = req.operation.clone();
+    create_module_async_job(&state, &headers, property_id, "PAR", &operation, serde_json::to_value(req).unwrap_or_default()).await
 }
 
 /// Internal helper to create a module-specific async job.
@@ -632,7 +669,7 @@ async fn create_module_async_job(
     get,
     path = "/v1/properties/{property_id}/external-systems",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = ExternalSystemConfig),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -644,7 +681,7 @@ pub async fn get_external_system_config(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ExternalSystemConfig>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -658,20 +695,20 @@ pub async fn get_external_system_config(
     super::set_tenant_context(&mut conn, env_id).await;
     // Return external system delivery config (webhook URLs, retry settings)
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "property_id": property_id,
-        "delivery_configs": [
-            { "system": "FLOW8", "webhook_url": "/flow/v1/hooks/pms", "retry_count": 3, "retry_delay_seconds": 60, "is_enabled": true },
-            { "system": "FUNC8", "webhook_url": "/func/v1/hooks/pms", "retry_count": 3, "retry_delay_seconds": 30, "is_enabled": true },
-            { "system": "POST8", "webhook_url": "/post/v1/hooks/pms", "retry_count": 5, "retry_delay_seconds": 120, "is_enabled": true },
+    Ok(Json(ExternalSystemConfig {
+        property_id,
+        delivery_configs: vec![
+            DeliveryConfig { system: "FLOW8".into(), webhook_url: "/flow/v1/hooks/pms".into(), retry_count: 3, retry_delay_seconds: 60, is_enabled: true },
+            DeliveryConfig { system: "FUNC8".into(), webhook_url: "/func/v1/hooks/pms".into(), retry_count: 3, retry_delay_seconds: 30, is_enabled: true },
+            DeliveryConfig { system: "POST8".into(), webhook_url: "/post/v1/hooks/pms".into(), retry_count: 5, retry_delay_seconds: 120, is_enabled: true },
         ],
-    })))
+    }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/external-systems",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - delivery configuration body is forwarded verbatim into the Bus event (free-form)", body = UpdateAcknowledgement),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -684,7 +721,7 @@ pub async fn update_external_system_config(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<UpdateAcknowledgement>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -703,9 +740,10 @@ pub async fn update_external_system_config(
     )
     .await
     .map_err(super::err_emit)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "status": "updated" }),
-    ))
+    Ok(Json(UpdateAcknowledgement {
+        property_id,
+        status: "updated".into(),
+    }))
 }
 
 // ── Property module configuration ──
@@ -713,7 +751,7 @@ pub async fn update_external_system_config(
     get,
     path = "/v1/properties/{property_id}/modules",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = PropertyModuleList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -725,7 +763,7 @@ pub async fn get_property_modules(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PropertyModuleList>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -740,26 +778,31 @@ pub async fn get_property_modules(
     let _ = property_id;
     // Return all available modules with enabled status
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "items": [
-            { "module": "reservations", "is_enabled": true },
-            { "module": "front_desk", "is_enabled": true },
-            { "module": "housekeeping", "is_enabled": true },
-            { "module": "cashiering", "is_enabled": true },
-            { "module": "rate_management", "is_enabled": true },
-            { "module": "inventory", "is_enabled": true },
-            { "module": "blocks_events", "is_enabled": true },
-            { "module": "profiles_crm", "is_enabled": true },
-            { "module": "back_office", "is_enabled": true },
-            { "module": "reporting", "is_enabled": true },
-        ]
-    })))
+    let module = |name: &str| PropertyModule {
+        module: name.into(),
+        is_enabled: true,
+    };
+    Ok(Json(PropertyModuleList {
+        items: vec![
+            module("reservations"),
+            module("front_desk"),
+            module("housekeeping"),
+            module("cashiering"),
+            module("rate_management"),
+            module("inventory"),
+            module("blocks_events"),
+            module("profiles_crm"),
+            module("back_office"),
+            module("reporting"),
+        ],
+    }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/modules",
+    request_body = PropertyModuleList,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = UpdateAcknowledgement),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -771,8 +814,8 @@ pub async fn update_property_modules(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PropertyModuleList>,
+) -> Result<Json<UpdateAcknowledgement>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -781,20 +824,21 @@ pub async fn update_property_modules(
         sentin8::shield::EvalTarget::new("hotel8:pms:admin"),
     )
     .await?;
-    // Module config is stored in the property's preferences JSONB - simplified for now
     let env_id = super::resolve_org_env(&a);
+    let req_value = serde_json::to_value(&req).unwrap_or_default();
     emit_on_pool(
         &state.pool,
         env_id,
         "hotel8:pms:property:modules_updated",
-        serde_json::json!({ "property_id": property_id, "modules": req }),
+        serde_json::json!({ "property_id": property_id, "modules": req_value }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
     )
     .await
     .map_err(super::err_emit)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "status": "updated" }),
-    ))
+    Ok(Json(UpdateAcknowledgement {
+        property_id,
+        status: "updated".into(),
+    }))
 }
 
 // ── EOD exception handling and retry ──
@@ -802,7 +846,7 @@ pub async fn update_property_modules(
     get,
     path = "/v1/properties/{property_id}/end-of-day/exceptions",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = EodExceptionList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -814,7 +858,7 @@ pub async fn get_eod_exceptions(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EodExceptionList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -834,30 +878,29 @@ pub async fn get_eod_exceptions(
          ORDER BY created_at DESC",
     )
     .bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<EodException> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "business_date": r.get::<chrono::NaiveDate, _>("business_date"),
-                "status": r.get::<String, _>("status"),
-                "step": r.get::<String, _>("step"),
-                "error_details": r.get::<Option<serde_json::Value>, _>("error_details"),
-                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-                "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
-            })
+        .map(|r| EodException {
+            id: r.get::<uuid::Uuid, _>("id"),
+            business_date: r.get::<chrono::NaiveDate, _>("business_date"),
+            status: r.get::<String, _>("status"),
+            step: r.get::<String, _>("step"),
+            error_details: r.get::<Option<serde_json::Value>, _>("error_details"),
+            created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            completed_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "exceptions": items }),
-    ))
+    Ok(Json(EodExceptionList {
+        property_id,
+        exceptions: items,
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/end-of-day/{eod_id}/retry",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = EodRetryResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -869,7 +912,7 @@ pub async fn retry_eod(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, eod_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EodRetryResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -902,7 +945,7 @@ pub async fn retry_eod(
     .await
     .map_err(super::err_db)?;
     // Resume from the failed step
-    let mut steps: Vec<serde_json::Value> = Vec::new();
+    let mut steps: Vec<EodStep> = Vec::new();
     let resume_from = failed_step.as_str();
     // Re-run steps from the failed step onwards
     if matches!(
@@ -918,7 +961,12 @@ pub async fn retry_eod(
         // Re-post room charges for in-house guests
         let charged = sqlx::query("UPDATE pms.folio_charges SET status = 'POSTED' WHERE reservation_id IN (SELECT id FROM pms.reservations WHERE property_id = $1 AND status = 'CHECKED_IN') AND status = 'PENDING'")
             .bind(property_id).execute(&mut *conn).await.map_err(super::err_db)?;
-        steps.push(serde_json::json!({ "step": "post_room_charges", "status": "completed", "rows_affected": charged.rows_affected() }));
+        steps.push(EodStep {
+            step: "post_room_charges".into(),
+            status: "completed".into(),
+            rows_affected: Some(charged.rows_affected()),
+            ..Default::default()
+        });
     }
     // Roll business date
     sqlx::query("UPDATE pms.eod_log SET step = 'ROLL_BUSINESS_DATE' WHERE id = $1")
@@ -926,7 +974,12 @@ pub async fn retry_eod(
         .execute(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    steps.push(serde_json::json!({ "step": "roll_business_date", "status": "completed", "new_date": business_date + chrono::Duration::days(1) }));
+    steps.push(EodStep {
+        step: "roll_business_date".into(),
+        status: "completed".into(),
+        new_date: Some(business_date + chrono::Duration::days(1)),
+        ..Default::default()
+    });
     // Generate reports
     sqlx::query("UPDATE pms.eod_log SET step = 'GENERATE_REPORTS' WHERE id = $1")
         .bind(eod_id)
@@ -935,22 +988,33 @@ pub async fn retry_eod(
         .map_err(super::err_db)?;
     let occupancy = sqlx::query("SELECT COUNT(*)::int as occupied, (SELECT COUNT(*)::int FROM pms.rooms WHERE property_id = $1) as total FROM pms.rooms WHERE property_id = $1 AND front_office_status = 'OCCUPIED'")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
-    let report_data = serde_json::json!({
-        "business_date": business_date,
-        "occupied_rooms": occupancy.get::<i32, _>("occupied"),
-        "total_rooms": occupancy.get::<i32, _>("total"),
+    let report_summary = EodReportSummary {
+        business_date,
+        occupied_rooms: occupancy.get::<i32, _>("occupied"),
+        total_rooms: occupancy.get::<i32, _>("total"),
+    };
+    let report_data = serde_json::to_value(&report_summary)
+        .map_err(|e| super::err_bad_request(&e.to_string()))?;
+    steps.push(EodStep {
+        step: "generate_reports".into(),
+        status: "completed".into(),
+        report_summary: Some(report_summary),
+        ..Default::default()
     });
-    steps.push(serde_json::json!({ "step": "generate_reports", "status": "completed", "report_summary": report_data }));
     // Mark completed
     sqlx::query("UPDATE pms.eod_log SET status = 'COMPLETED', step = 'DONE', completed_at = now(), report_data = $2 WHERE id = $1")
         .bind(eod_id).bind(&report_data).execute(&mut *conn).await.map_err(super::err_db)?;
     emit_tx(&mut *conn, env_id, "hotel8:pms:eod:retried", serde_json::json!({ "property_id": property_id, "eod_id": eod_id, "business_date": business_date, "resumed_from": failed_step }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "eod_id": eod_id, "property_id": property_id, "business_date": business_date,
-        "status": "COMPLETED", "resumed_from": failed_step, "steps": steps,
-    })))
+    Ok(Json(EodRetryResult {
+        eod_id,
+        property_id,
+        business_date,
+        status: "COMPLETED".into(),
+        resumed_from: failed_step,
+        steps,
+    }))
 }
 
 // ── -Additional report subject areas ──
@@ -958,7 +1022,7 @@ pub async fn retry_eod(
     get,
     path = "/v1/properties/{property_id}/reports/guest-history",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = GuestHistoryReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -971,7 +1035,7 @@ pub async fn get_guest_history_report(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GuestHistoryReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1000,31 +1064,32 @@ pub async fn get_guest_history_report(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<GuestHistoryRow> = rows
         .iter()
         .map(|r| {
             let vip: String = r.get("vip_status");
-            serde_json::json!({
-                "profile_id": r.get::<uuid::Uuid, _>("id"),
-                "first_name": r.get::<String, _>("first_name"),
-                "last_name": r.get::<String, _>("last_name"),
-                "email": r.get::<Option<String>, _>("email"),
-                "vip_status": vip,
-                "stay_count": r.get::<i64, _>("stay_count"),
-                "total_revenue": r.get::<String, _>("total_revenue"),
-            })
+            GuestHistoryRow {
+                profile_id: r.get::<uuid::Uuid, _>("id"),
+                first_name: r.get::<String, _>("first_name"),
+                last_name: r.get::<String, _>("last_name"),
+                email: r.get::<Option<String>, _>("email"),
+                vip_status: vip,
+                stay_count: r.get::<i64, _>("stay_count"),
+                total_revenue: r.get::<String, _>("total_revenue"),
+            }
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "guests": items }),
-    ))
+    Ok(Json(GuestHistoryReport {
+        property_id,
+        guests: items,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/reports/housekeeping-analysis",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = HousekeepingAnalysisReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1036,7 +1101,7 @@ pub async fn get_housekeeping_analysis_report(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<HousekeepingAnalysisReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1062,32 +1127,35 @@ pub async fn get_housekeeping_analysis_report(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<HousekeepingAnalysisRow> = rows
         .iter()
         .map(|r| {
             let tt: String = r.get("task_type");
             let st: String = r.get("status");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"), "task_type": tt, "status": st,
-                "priority": r.get::<Option<String>, _>("priority"),
-                "assigned_to": r.get::<Option<String>, _>("assigned_to"),
-                "room_number": r.get::<Option<String>, _>("room_number"),
-                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-                "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
-                "turnaround_seconds": r.get::<Option<i32>, _>("turnaround_seconds"),
-            })
+            HousekeepingAnalysisRow {
+                id: r.get::<uuid::Uuid, _>("id"),
+                task_type: tt,
+                status: st,
+                priority: r.get::<Option<String>, _>("priority"),
+                assigned_to: r.get::<Option<String>, _>("assigned_to"),
+                room_number: r.get::<Option<String>, _>("room_number"),
+                created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+                completed_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
+                turnaround_seconds: r.get::<Option<i32>, _>("turnaround_seconds"),
+            }
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "tasks": items }),
-    ))
+    Ok(Json(HousekeepingAnalysisReport {
+        property_id,
+        tasks: items,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/reports/sales-catering",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = SalesCateringReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1099,7 +1167,7 @@ pub async fn get_sales_catering_report(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SalesCateringReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1126,32 +1194,36 @@ pub async fn get_sales_catering_report(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<SalesCateringRow> = rows
         .iter()
         .map(|r| {
             let st: String = r.get("status");
             let bt: String = r.get("block_type");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"), "block_code": r.get::<String, _>("block_code"),
-                "block_name": r.get::<String, _>("block_name"), "status": st, "block_type": bt,
-                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-                "negotiated_rate": r.get::<String, _>("negotiated_rate"),
-                "event_count": r.get::<i64, _>("event_count"),
-                "total_capacity": r.get::<i64, _>("total_capacity"),
-            })
+            SalesCateringRow {
+                id: r.get::<uuid::Uuid, _>("id"),
+                block_code: r.get::<String, _>("block_code"),
+                block_name: r.get::<String, _>("block_name"),
+                status: st,
+                block_type: bt,
+                start_date: r.get::<chrono::NaiveDate, _>("start_date"),
+                end_date: r.get::<chrono::NaiveDate, _>("end_date"),
+                negotiated_rate: r.get::<String, _>("negotiated_rate"),
+                event_count: r.get::<i64, _>("event_count"),
+                total_capacity: r.get::<i64, _>("total_capacity"),
+            }
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "blocks": items }),
-    ))
+    Ok(Json(SalesCateringReport {
+        property_id,
+        blocks: items,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/reports/channel-performance",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = ChannelPerformanceReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1164,7 +1236,7 @@ pub async fn get_channel_performance_report(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelPerformanceReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1195,27 +1267,28 @@ pub async fn get_channel_performance_report(
     )
     .bind(property_id).bind(start).bind(end)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ChannelPerformanceRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "source_code": r.get::<String, _>("source_code"),
-                "reservation_count": r.get::<i64, _>("reservation_count"),
-                "active_count": r.get::<i64, _>("active_count"),
-                "revenue": r.get::<String, _>("revenue"),
-            })
+        .map(|r| ChannelPerformanceRow {
+            source_code: r.get::<String, _>("source_code"),
+            reservation_count: r.get::<i64, _>("reservation_count"),
+            active_count: r.get::<i64, _>("active_count"),
+            revenue: r.get::<String, _>("revenue"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "channels": items }),
-    ))
+    Ok(Json(ChannelPerformanceReport {
+        property_id,
+        start_date: start.into(),
+        end_date: end.into(),
+        channels: items,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/reports/market-segment",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = MarketSegmentReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1228,7 +1301,7 @@ pub async fn get_market_segment_report(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<MarketSegmentReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1259,27 +1332,28 @@ pub async fn get_market_segment_report(
     )
     .bind(property_id).bind(start).bind(end)
     .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<MarketSegmentRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "market_code": r.get::<String, _>("market_code"),
-                "reservation_count": r.get::<i64, _>("reservation_count"),
-                "revenue": r.get::<String, _>("revenue"),
-                "avg_party_size": r.get::<i32, _>("avg_party_size"),
-            })
+        .map(|r| MarketSegmentRow {
+            market_code: r.get::<String, _>("market_code"),
+            reservation_count: r.get::<i64, _>("reservation_count"),
+            revenue: r.get::<String, _>("revenue"),
+            avg_party_size: r.get::<i32, _>("avg_party_size"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "start_date": start, "end_date": end, "segments": items }),
-    ))
+    Ok(Json(MarketSegmentReport {
+        property_id,
+        start_date: start.into(),
+        end_date: end.into(),
+        segments: items,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/reports/rate-analysis",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = RateAnalysisReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1291,7 +1365,7 @@ pub async fn get_rate_analysis_report(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<RateAnalysisReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1318,21 +1392,20 @@ pub async fn get_rate_analysis_report(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<RateAnalysisRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "rate_plan_code": r.get::<String, _>("rate_plan_code"),
-                "rate_plan_name": r.get::<String, _>("rate_plan_name"),
-                "rate_category": r.get::<String, _>("rate_category"),
-                "reservation_count": r.get::<i64, _>("reservation_count"),
-                "total_revenue": r.get::<String, _>("total_revenue"),
-                "adr": r.get::<String, _>("adr"),
-            })
+        .map(|r| RateAnalysisRow {
+            rate_plan_code: r.get::<String, _>("rate_plan_code"),
+            rate_plan_name: r.get::<String, _>("rate_plan_name"),
+            rate_category: r.get::<String, _>("rate_category"),
+            reservation_count: r.get::<i64, _>("reservation_count"),
+            total_revenue: r.get::<String, _>("total_revenue"),
+            adr: r.get::<String, _>("adr"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "property_id": property_id, "rate_plans": items }),
-    ))
+    Ok(Json(RateAnalysisReport {
+        property_id,
+        rate_plans: items,
+    }))
 }

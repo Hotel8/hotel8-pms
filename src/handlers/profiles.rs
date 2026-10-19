@@ -9,12 +9,20 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{
+    AddPreferenceRequest, LinkLoyaltyRequest, LoyaltyLinkResult, LoyaltyNumberSet,
+    MergeProfilesRequest, MergeProfilesResult, PreferenceList, PreferenceView,
+    ProfileCreateRequest, ProfileCreated, ProfileDetail, ProfileList, ProfileSummary,
+    SetLoyaltyNumberRequest, StayHistoryList, StayHistoryRow,
+};
 use sqlx::Row;
+
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/profiles",
+    request_body = ProfileCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - profile created", body = ProfileCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -26,8 +34,8 @@ pub async fn create_profile(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ProfileCreateRequest>,
+) -> Result<Json<ProfileCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -39,28 +47,22 @@ pub async fn create_profile(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let profile_type = req
-        .get("profile_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("GUEST");
-    let vip_status = req
-        .get("vip_status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("NONE");
+    let profile_type = req.profile_type.as_str();
+    let vip_status = req.vip_status.as_str();
     let row = sqlx::query("INSERT INTO pms.guest_profiles (property_id, profile_type, vip_status, first_name, last_name, email, phone, address, company_name, loyalty_number, preferred_language, preferences)
          VALUES ($1, $2::pms.profile_type, $3::pms.vip_status, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, profile_type, first_name, last_name, email, created_at")
         .bind(property_id)
         .bind(profile_type)
         .bind(vip_status)
-        .bind(req.get("first_name").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("last_name").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("email").and_then(|v| v.as_str()))
-        .bind(req.get("phone").and_then(|v| v.as_str()))
-        .bind(req.get("address").and_then(|v| v.as_str()))
-        .bind(req.get("company_name").and_then(|v| v.as_str()))
-        .bind(req.get("loyalty_number").and_then(|v| v.as_str()))
-        .bind(req.get("preferred_language").and_then(|v| v.as_str()))
-        .bind(serde_json::to_value(req.get("preferences").cloned().unwrap_or(serde_json::Value::Null)).unwrap_or(serde_json::Value::Null))
+        .bind(&req.first_name)
+        .bind(&req.last_name)
+        .bind(req.email.as_deref())
+        .bind(req.phone.as_deref())
+        .bind(req.address.as_deref())
+        .bind(req.company_name.as_deref())
+        .bind(req.loyalty_number.as_deref())
+        .bind(req.preferred_language.as_deref())
+        .bind(req.preferences.clone())
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
@@ -75,20 +77,20 @@ pub async fn create_profile(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": profile_id,
-        "profile_type": row.get::<String, _>("profile_type"),
-        "first_name": row.get::<String, _>("first_name"),
-        "last_name": row.get::<String, _>("last_name"),
-        "email": row.get::<Option<String>, _>("email"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    })))
+    Ok(Json(ProfileCreated {
+        id: profile_id,
+        profile_type: row.get::<String, _>("profile_type"),
+        first_name: row.get::<String, _>("first_name"),
+        last_name: row.get::<String, _>("last_name"),
+        email: row.get::<Option<String>, _>("email"),
+        created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/profiles",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = ProfileList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -100,7 +102,7 @@ pub async fn list_profiles(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ProfileList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -117,34 +119,31 @@ pub async fn list_profiles(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ProfileSummary> = rows
         .iter()
-        .map(|r| {
-            let pt: String = r.get("profile_type");
-            let vip: String = r.get("vip_status");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "profile_type": pt,
-                "vip_status": vip,
-                "first_name": r.get::<String, _>("first_name"),
-                "last_name": r.get::<String, _>("last_name"),
-                "email": r.get::<Option<String>, _>("email"),
-                "phone": r.get::<Option<String>, _>("phone"),
-                "company_name": r.get::<Option<String>, _>("company_name"),
-                "loyalty_number": r.get::<Option<String>, _>("loyalty_number"),
-            })
+        .map(|r| ProfileSummary {
+            id: r.get::<uuid::Uuid, _>("id"),
+            profile_type: r.get("profile_type"),
+            vip_status: r.get("vip_status"),
+            first_name: r.get::<String, _>("first_name"),
+            last_name: r.get::<String, _>("last_name"),
+            email: r.get::<Option<String>, _>("email"),
+            phone: r.get::<Option<String>, _>("phone"),
+            company_name: r.get::<Option<String>, _>("company_name"),
+            loyalty_number: r.get::<Option<String>, _>("loyalty_number"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ProfileList { items }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/profiles/{profile_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = ProfileDetail),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Profile not found"),
     ),
     security(),
     tag = "pms",
@@ -154,7 +153,7 @@ pub async fn get_profile(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ProfileDetail>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -178,30 +177,31 @@ pub async fn get_profile(
     let pt: String = row.get("profile_type");
     let vip: String = row.get("vip_status");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "property_id": row.get::<uuid::Uuid, _>("property_id"),
-        "profile_type": pt,
-        "vip_status": vip,
-        "first_name": row.get::<String, _>("first_name"),
-        "last_name": row.get::<String, _>("last_name"),
-        "email": row.get::<Option<String>, _>("email"),
-        "phone": row.get::<Option<String>, _>("phone"),
-        "company_name": row.get::<Option<String>, _>("company_name"),
-        "loyalty_number": row.get::<Option<String>, _>("loyalty_number"),
-        "preferred_language": row.get::<Option<String>, _>("preferred_language"),
-        "preferences": row.get::<serde_json::Value, _>("preferences"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-        "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
-    })))
+    Ok(Json(ProfileDetail {
+        id: row.get::<uuid::Uuid, _>("id"),
+        property_id: row.get::<uuid::Uuid, _>("property_id"),
+        profile_type: pt,
+        vip_status: vip,
+        first_name: row.get::<String, _>("first_name"),
+        last_name: row.get::<String, _>("last_name"),
+        email: row.get::<Option<String>, _>("email"),
+        phone: row.get::<Option<String>, _>("phone"),
+        company_name: row.get::<Option<String>, _>("company_name"),
+        loyalty_number: row.get::<Option<String>, _>("loyalty_number"),
+        preferred_language: row.get::<Option<String>, _>("preferred_language"),
+        preferences: row.get::<serde_json::Value, _>("preferences"),
+        created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        updated_at: row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+    }))
 }
 
 // ── Preference management ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/profiles/{profile_id}/preferences",
+    request_body = AddPreferenceRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = PreferenceView),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -213,8 +213,8 @@ pub async fn add_preference(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<AddPreferenceRequest>,
+) -> Result<Json<PreferenceView>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -226,29 +226,26 @@ pub async fn add_preference(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let pref_type = req
-        .get("preference_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("ROOM");
-    let pref_code = req
-        .get("preference_code")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let pref_value = req.get("preference_value").and_then(|v| v.as_str());
+    let pref_type = req.preference_type.as_str();
+    let pref_code = req.preference_code.as_str();
+    let pref_value = req.preference_value.as_deref();
     let row = sqlx::query("INSERT INTO pms.guest_preferences (profile_id, preference_type, preference_code, preference_value) VALUES ($1, $2, $3, $4) RETURNING id, preference_type, preference_code, preference_value")
         .bind(profile_id).bind(pref_type).bind(pref_code).bind(pref_value)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "preference_type": row.get::<String, _>("preference_type"), "preference_code": row.get::<String, _>("preference_code"), "preference_value": row.get::<Option<String>, _>("preference_value") }),
-    ))
+    Ok(Json(PreferenceView {
+        id,
+        preference_type: row.get::<String, _>("preference_type"),
+        preference_code: row.get::<String, _>("preference_code"),
+        preference_value: row.get::<Option<String>, _>("preference_value"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/profiles/{profile_id}/preferences",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = PreferenceList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -260,7 +257,7 @@ pub async fn list_preferences(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PreferenceList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -274,18 +271,23 @@ pub async fn list_preferences(
     super::set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, preference_type, preference_code, preference_value FROM pms.guest_preferences WHERE profile_id = $1 ORDER BY preference_type, preference_code")
         .bind(profile_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "preference_type": r.get::<String, _>("preference_type"),
-        "preference_code": r.get::<String, _>("preference_code"), "preference_value": r.get::<Option<String>, _>("preference_value"),
-    })).collect();
+    let items: Vec<PreferenceView> = rows
+        .iter()
+        .map(|r| PreferenceView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            preference_type: r.get::<String, _>("preference_type"),
+            preference_code: r.get::<String, _>("preference_code"),
+            preference_value: r.get::<Option<String>, _>("preference_value"),
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(PreferenceList { items }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/properties/{property_id}/profiles/{profile_id}/preferences/{pref_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Preference removed"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -322,8 +324,9 @@ pub async fn remove_preference(
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/profiles/{profile_id}/loyalty",
+    request_body = LinkLoyaltyRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = LoyaltyLinkResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -335,8 +338,8 @@ pub async fn link_loyalty(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<LinkLoyaltyRequest>,
+) -> Result<Json<LoyaltyLinkResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -348,20 +351,18 @@ pub async fn link_loyalty(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let loyalty_number = req
-        .get("loyalty_number")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let program_code = req.get("program_code").and_then(|v| v.as_str());
+    let loyalty_number = req.loyalty_number.as_str();
+    let program_code = req.program_code.as_deref();
     let row = sqlx::query("UPDATE pms.guest_profiles SET loyalty_number = $2, updated_at = now() WHERE id = $1 RETURNING id, loyalty_number")
         .bind(profile_id).bind(loyalty_number)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:profile:loyalty_linked", serde_json::json!({ "profile_id": profile_id, "loyalty_number": loyalty_number, "program_code": program_code }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "profile_id": row.get::<uuid::Uuid, _>("id"), "loyalty_number": row.get::<String, _>("loyalty_number") }),
-    ))
+    Ok(Json(LoyaltyLinkResult {
+        profile_id: row.get::<uuid::Uuid, _>("id"),
+        loyalty_number: row.get::<String, _>("loyalty_number"),
+    }))
 }
 
 // ── Stay History ──
@@ -369,7 +370,7 @@ pub async fn link_loyalty(
     get,
     path = "/v1/properties/{property_id}/profiles/{profile_id}/stay-history",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - last 100 stays, newest first", body = StayHistoryList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -381,7 +382,7 @@ pub async fn get_stay_history(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<StayHistoryList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -395,24 +396,34 @@ pub async fn get_stay_history(
     super::set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, confirmation_number, arrival_date, departure_date, status, num_adults, num_children, assigned_room_number FROM pms.reservations WHERE guest_profile_id = $1 AND property_id = $2 ORDER BY arrival_date DESC LIMIT 100")
         .bind(profile_id).bind(property_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| { let s: String = r.get("status"); serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "confirmation_number": r.get::<String, _>("confirmation_number"),
-        "arrival_date": r.get::<chrono::NaiveDate, _>("arrival_date"), "departure_date": r.get::<chrono::NaiveDate, _>("departure_date"),
-        "status": s, "num_adults": r.get::<i32, _>("num_adults"), "num_children": r.get::<i32, _>("num_children"),
-        "room_number": r.get::<Option<String>, _>("assigned_room_number"),
-    })}).collect();
+    let items: Vec<StayHistoryRow> = rows
+        .iter()
+        .map(|r| StayHistoryRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            confirmation_number: r.get::<String, _>("confirmation_number"),
+            arrival_date: r.get::<chrono::NaiveDate, _>("arrival_date"),
+            departure_date: r.get::<chrono::NaiveDate, _>("departure_date"),
+            status: r.get("status"),
+            num_adults: r.get::<i32, _>("num_adults"),
+            num_children: r.get::<i32, _>("num_children"),
+            room_number: r.get::<Option<String>, _>("assigned_room_number"),
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(StayHistoryList { items }))
 }
 
 // ── Profile merge - deduplicate guest profiles, merge stay history ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/profiles/merge",
+    request_body = MergeProfilesRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - target kept, source reservations/preferences re-pointed", body = MergeProfilesResult),
+        (status = 400, description = "source/target required, identical, or invalid"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+            (status = 404, description = "Source or target profile not found"),
     ),
     security(),
     tag = "pms",
@@ -422,8 +433,8 @@ pub async fn merge_profiles(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<MergeProfilesRequest>,
+) -> Result<Json<MergeProfilesResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -435,18 +446,8 @@ pub async fn merge_profiles(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let source_id_str = req
-        .get("source_profile_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::err_bad_request("source_profile_id required"))?;
-    let target_id_str = req
-        .get("target_profile_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::err_bad_request("target_profile_id required"))?;
-    let source_id = uuid::Uuid::parse_str(source_id_str)
-        .map_err(|e| super::err_bad_request(&format!("invalid source_profile_id: {e}")))?;
-    let target_id = uuid::Uuid::parse_str(target_id_str)
-        .map_err(|e| super::err_bad_request(&format!("invalid target_profile_id: {e}")))?;
+    let source_id = req.source_profile_id;
+    let target_id = req.target_profile_id;
     if source_id == target_id {
         return Err(super::err_bad_request(
             "source and target must be different",
@@ -513,35 +514,37 @@ pub async fn merge_profiles(
     crate::event_emit::emit_tx(&mut *conn, env_id, "hotel8:pms:profile:merged", serde_json::json!({ "property_id": property_id, "source_profile_id": source_id, "target_profile_id": target_id, "reservations_moved": moved_count }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "merged": true,
-        "source_profile_id": source_id,
-        "target_profile_id": target_id,
-        "reservations_moved": moved_count,
-    })))
+    Ok(Json(MergeProfilesResult {
+        merged: true,
+        source_profile_id: source_id,
+        target_profile_id: target_id,
+        reservations_moved: moved_count,
+    }))
 }
 // ── Loyalty member link (service-to-service) ──
+/// `PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number` -
+/// Sets the loyalty member number on a guest profile. Called by Hotel8:Loyalty
+/// via `pms-client` over its HTTP API (DESIGN.md §1 - no cross-service SQL).
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/profiles/{profile_id}/loyalty-number",
+    request_body = SetLoyaltyNumberRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = LoyaltyNumberSet),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Profile not found"),
     ),
     security(),
     tag = "pms",
 )]
 
-/// `PUT /v1/properties/{property_id}/profiles/{profile_id}/loyalty-number`
-/// Sets the loyalty member number on a guest profile. Called by Hotel8:Loyalty
-/// via `pms-client` over its HTTP API (DESIGN.md §1 - no cross-service SQL).
 pub async fn set_loyalty_number(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, profile_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<SetLoyaltyNumberRequest>,
+) -> Result<Json<LoyaltyNumberSet>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     // Step 5 - Shield decides. The profile-creation proxy-back also touches
     // the loyalty member; the mirror permit for this action is keyed on the
@@ -557,11 +560,7 @@ pub async fn set_loyalty_number(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let loyalty_number = req
-        .get("loyalty_number")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    let loyalty_number = req.loyalty_number;
     let row = sqlx::query(
         "UPDATE pms.guest_profiles SET loyalty_number = $3, updated_at = now() \
          WHERE id = $1 AND property_id = $2 \
@@ -590,9 +589,9 @@ pub async fn set_loyalty_number(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "profile_id": row.get::<uuid::Uuid, _>("id"),
-        "loyalty_number": row.get::<Option<String>, _>("loyalty_number"),
-        "linked": true,
-    })))
+    Ok(Json(LoyaltyNumberSet {
+        profile_id: row.get::<uuid::Uuid, _>("id"),
+        loyalty_number: row.get::<Option<String>, _>("loyalty_number"),
+        linked: true,
+    }))
 }

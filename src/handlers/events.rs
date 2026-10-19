@@ -9,13 +9,15 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{EventCreateRequest, EventCreated, EventSummary, EventSummaryList};
 use sqlx::Row;
 
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/events",
+    request_body = EventCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - event created in TENTATIVE state", body = EventCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -26,8 +28,8 @@ pub async fn create_event(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<EventCreateRequest>,
+) -> Result<Json<EventCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -44,15 +46,15 @@ pub async fn create_event(
          VALUES ($1, $2, $3, $4, $5::date, $6::date, 'TENTATIVE', $7, $8, $9, $10, $11) RETURNING id, event_code, event_name, status")
         .bind(property_id)
         .bind(&event_code)
-        .bind(req.get("event_name").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("event_type").and_then(|v| v.as_str()).unwrap_or("MEETING"))
-        .bind(req.get("start_date").and_then(|v| v.as_str()))
-        .bind(req.get("end_date").and_then(|v| v.as_str()))
-        .bind(req.get("expected_attendees").and_then(|v| v.as_u64()).unwrap_or(0) as i32)
-        .bind(req.get("banquet_order").and_then(|v| v.as_str()))
-        .bind(req.get("contact_name").and_then(|v| v.as_str()))
-        .bind(req.get("contact_phone").and_then(|v| v.as_str()))
-        .bind(req.get("notes").and_then(|v| v.as_str()))
+        .bind(&req.event_name)
+        .bind(&req.event_type)
+        .bind(req.start_date.as_deref())
+        .bind(req.end_date.as_deref())
+        .bind(req.expected_attendees)
+        .bind(req.banquet_order.as_deref())
+        .bind(req.contact_name.as_deref())
+        .bind(req.contact_phone.as_deref())
+        .bind(req.notes.as_deref())
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
@@ -68,16 +70,18 @@ pub async fn create_event(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": event_id, "event_code": event_code, "status": status }),
-    ))
+    Ok(Json(EventCreated {
+        id: event_id,
+        event_code,
+        status,
+    }))
 }
 
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/events",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = EventSummaryList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -88,7 +92,7 @@ pub async fn list_events(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EventSummaryList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -105,22 +109,19 @@ pub async fn list_events(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<EventSummary> = rows
         .iter()
-        .map(|r| {
-            let status: String = r.get("status");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "event_code": r.get::<String, _>("event_code"),
-                "event_name": r.get::<String, _>("event_name"),
-                "event_type": r.get::<String, _>("event_type"),
-                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-                "status": status,
-                "expected_attendees": r.get::<i32, _>("expected_attendees"),
-            })
+        .map(|r| EventSummary {
+            id: r.get::<uuid::Uuid, _>("id"),
+            event_code: r.get::<String, _>("event_code"),
+            event_name: r.get::<String, _>("event_name"),
+            event_type: r.get::<String, _>("event_type"),
+            start_date: r.get::<chrono::NaiveDate, _>("start_date"),
+            end_date: r.get::<chrono::NaiveDate, _>("end_date"),
+            status: r.get("status"),
+            expected_attendees: r.get::<i32, _>("expected_attendees"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(EventSummaryList { items }))
 }

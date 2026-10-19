@@ -10,14 +10,20 @@ use crate::state_machine::{BlockState, PmsState};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{
+    BlockCreateRequest, BlockCreated, BlockList, BlockNextStatuses, BlockStatusChange,
+    BlockSummary, EventResourceAdded, EventResourceList, EventResourceRow, EventResourceUpdate,
+    EventResourceUpdateResult, FunctionSpace, FunctionSpaceList, PostingMasterCreated,
+};
 use sqlx::Row;
 
 // ── Blocks ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/blocks",
+    request_body = BlockCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - block created in PROVISIONAL state", body = BlockCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -29,8 +35,8 @@ pub async fn create_block(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<BlockCreateRequest>,
+) -> Result<Json<BlockCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -47,15 +53,15 @@ pub async fn create_block(
          VALUES ($1, $2, $3, $4, $5::date, $6::date, $7, $8, 'PROVISIONAL', $9, $10::numeric, $11::date) RETURNING *")
         .bind(property_id)
         .bind(&block_code)
-        .bind(req.get("block_name").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("room_type_id").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok()))
-        .bind(req.get("start_date").and_then(|v| v.as_str()))
-        .bind(req.get("end_date").and_then(|v| v.as_str()))
-        .bind(req.get("blocked_rooms").and_then(|v| v.as_u64()).unwrap_or(0) as i32)
-        .bind(req.get("released_until").and_then(|v| v.as_str()).unwrap_or("0"))
-        .bind(req.get("block_type").and_then(|v| v.as_str()).unwrap_or("ALLOTMENT"))
-        .bind(req.get("negotiated_rate").and_then(|v| v.as_str()))
-        .bind(req.get("cutoff_date").and_then(|v| v.as_str()))
+        .bind(&req.block_name)
+        .bind(req.room_type_id)
+        .bind(req.start_date.as_deref())
+        .bind(req.end_date.as_deref())
+        .bind(req.blocked_rooms)
+        .bind(Some(req.released_until.as_str()))
+        .bind(Some(req.block_type.as_str()))
+        .bind(req.negotiated_rate.as_deref())
+        .bind(req.cutoff_date.as_deref())
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
@@ -70,9 +76,11 @@ pub async fn create_block(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": block_id, "block_code": block_code, "status": "PROVISIONAL" }),
-    ))
+    Ok(Json(BlockCreated {
+        id: block_id,
+        block_code: block_code,
+        status: "PROVISIONAL".into(),
+    }))
 }
 
 /// `GET /v1/properties/{property_id}/blocks`
@@ -80,7 +88,7 @@ pub async fn create_block(
     get,
     path = "/v1/properties/{property_id}/blocks",
     responses(
-        (status = 200, description = "List of blocks", body = serde_json::Value),
+        (status = 200, description = "List of blocks", body = BlockList),
         (status = 403, description = "Missing pms:admin scope"),
     ),
     security(("pms:admin" = [])),
@@ -90,7 +98,7 @@ pub async fn list_blocks(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<BlockList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -107,31 +115,30 @@ pub async fn list_blocks(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<BlockSummary> = rows
         .iter()
-        .map(|r| {
-            let status: String = r.get("status");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "block_code": r.get::<String, _>("block_code"),
-                "block_name": r.get::<String, _>("block_name"),
-                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-                "blocked_rooms": r.get::<i32, _>("blocked_rooms"),
-                "picked_up": r.get::<i32, _>("picked_up"),
-                "released_until": r.get::<String, _>("released_until"),
-                "status": status,
-            })
+        .map(|r| BlockSummary {
+            id: r.get::<uuid::Uuid, _>("id"),
+            block_code: r.get::<String, _>("block_code"),
+            block_name: r.get::<String, _>("block_name"),
+            start_date: r.get::<chrono::NaiveDate, _>("start_date"),
+            end_date: r.get::<chrono::NaiveDate, _>("end_date"),
+            blocked_rooms: r.get::<i32, _>("blocked_rooms"),
+            picked_up: r.get::<i32, _>("picked_up"),
+            released_until: r.get::<String, _>("released_until"),
+            status: r.get("status"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(BlockList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/blocks/{block_id}/status",
+    request_body = BlockStatusChange,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Transition applied"),
+        (status = 409, description = "Transition not allowed by the block state machine"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -143,7 +150,7 @@ pub async fn update_block_status(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, block_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<BlockStatusChange>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
@@ -156,10 +163,7 @@ pub async fn update_block_status(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let new_status = req
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("PROVISIONAL");
+    let new_status = req.status.as_str();
     let next = BlockState::from_label(new_status);
     // Guard the transition server-side: read current, validate against the matrix.
     let cur_row = sqlx::query(
@@ -206,7 +210,7 @@ pub async fn update_block_status(
     get,
     path = "/v1/properties/{property_id}/blocks/{block_id}/next-statuses",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = BlockNextStatuses),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -218,7 +222,7 @@ pub async fn get_next_statuses(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, block_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<BlockNextStatuses>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -254,9 +258,10 @@ pub async fn get_next_statuses(
     .map(|s| s.label())
     .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "current_status": current, "next_statuses": next }),
-    ))
+    Ok(Json(BlockNextStatuses {
+        current_status: current,
+        next_statuses: next.into_iter().map(str::to_owned).collect(),
+    }))
 }
 
 // ── Posting Master ──
@@ -264,7 +269,7 @@ pub async fn get_next_statuses(
     post,
     path = "/v1/properties/{property_id}/blocks/{block_id}/posting-master",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - posting master reservation created", body = PostingMasterCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -276,8 +281,7 @@ pub async fn create_posting_master(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, block_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    _req: Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PostingMasterCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -307,9 +311,11 @@ pub async fn create_posting_master(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "posting_master_id": pm_id, "block_id": block_id, "confirmation_number": row.get::<String, _>("confirmation_number") }),
-    ))
+    Ok(Json(PostingMasterCreated {
+        posting_master_id: pm_id,
+        block_id,
+        confirmation_number: row.get::<String, _>("confirmation_number"),
+    }))
 }
 
 // ── Function Space Availability ──
@@ -317,7 +323,7 @@ pub async fn create_posting_master(
     get,
     path = "/v1/properties/{property_id}/function-spaces",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - active spaces with capacity >= min_capacity, minus those booked on the optional date", body = FunctionSpaceList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -330,7 +336,7 @@ pub async fn get_available_spaces(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<FunctionSpaceList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -350,7 +356,7 @@ pub async fn get_available_spaces(
     let rows = sqlx::query("SELECT id, space_code, space_name, capacity, setup_styles FROM pms.function_spaces WHERE property_id = $1 AND is_active = true AND capacity >= $2 ORDER BY capacity")
         .bind(property_id).bind(min_capacity).fetch_all(&mut *conn).await.map_err(super::err_db)?;
     // For each space, check if it's booked on the given date
-    let mut available: Vec<serde_json::Value> = Vec::new();
+    let mut available: Vec<FunctionSpace> = Vec::new();
     for r in &rows {
         let space_id: uuid::Uuid = r.get("id");
         let is_booked = if let Some(d) = date {
@@ -360,15 +366,25 @@ pub async fn get_available_spaces(
             false
         };
         if !is_booked {
-            available.push(serde_json::json!({
-                "id": space_id, "space_code": r.get::<String, _>("space_code"),
-                "space_name": r.get::<String, _>("space_name"), "capacity": r.get::<i32, _>("capacity"),
-                "setup_styles": r.get::<serde_json::Value, _>("setup_styles"),
-            }));
+            available.push(FunctionSpace {
+                id: space_id,
+                space_code: r.get::<String, _>("space_code"),
+                space_name: r.get::<String, _>("space_name"),
+                capacity: r.get::<i32, _>("capacity"),
+                setup_styles: r
+                    .get::<serde_json::Value, _>("setup_styles")
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(str::to_owned))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            });
         }
     }
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": available })))
+    Ok(Json(FunctionSpaceList { items: available }))
 }
 
 // ── Event Resources ──
@@ -376,7 +392,7 @@ pub async fn get_available_spaces(
     get,
     path = "/v1/properties/{property_id}/events/{event_id}/resources",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - resources ordered by resource_type", body = EventResourceList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -388,7 +404,7 @@ pub async fn get_event_resources(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, event_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EventResourceList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -402,19 +418,26 @@ pub async fn get_event_resources(
     super::set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, resource_type, resource_name, quantity, cost::text as cost, notes FROM pms.event_resources WHERE event_id = $1 ORDER BY resource_type")
         .bind(event_id).fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "resource_type": r.get::<String, _>("resource_type"),
-        "resource_name": r.get::<String, _>("resource_name"), "quantity": r.get::<i32, _>("quantity"),
-        "cost": r.get::<String, _>("cost"), "notes": r.get::<Option<String>, _>("notes"),
-    })).collect();
+    let items: Vec<EventResourceRow> = rows
+        .iter()
+        .map(|r| EventResourceRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            resource_type: r.get::<String, _>("resource_type"),
+            resource_name: r.get::<String, _>("resource_name"),
+            quantity: r.get::<i32, _>("quantity"),
+            cost: r.get::<String, _>("cost"),
+            notes: r.get::<Option<String>, _>("notes"),
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(EventResourceList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/events/{event_id}/resources",
+    request_body = EventResourceUpdate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - every listed resource line is inserted", body = EventResourceUpdateResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -426,8 +449,8 @@ pub async fn update_event_resources(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_property_id, event_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<EventResourceUpdate>,
+) -> Result<Json<EventResourceUpdateResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -439,28 +462,21 @@ pub async fn update_event_resources(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let resources = req
-        .get("resources")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
-    let mut added: Vec<serde_json::Value> = Vec::new();
-    for r in &resources {
-        let resource_type = r
-            .get("resource_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("AV");
-        let resource_name = r
-            .get("resource_name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let quantity: i32 = r.get("quantity").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-        let cost = r.get("cost").and_then(|v| v.as_str()).unwrap_or("0");
-        let notes = r.get("notes").and_then(|v| v.as_str());
+    let mut added: Vec<EventResourceAdded> = Vec::new();
+    for r in &req.resources {
+        let resource_type = r.resource_type.as_str();
+        let resource_name = r.resource_name.as_str();
+        let quantity = r.quantity;
+        let cost = r.cost.as_str();
+        let notes = r.notes.as_deref();
         let row = sqlx::query("INSERT INTO pms.event_resources (event_id, resource_type, resource_name, quantity, cost, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id")
             .bind(event_id).bind(resource_type).bind(resource_name).bind(quantity).bind(cost).bind(notes)
             .fetch_one(&mut *conn).await.map_err(super::err_db)?;
-        added.push(serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "resource_type": resource_type, "resource_name": resource_name }));
+        added.push(EventResourceAdded {
+            id: row.get::<uuid::Uuid, _>("id"),
+            resource_type: resource_type.to_string(),
+            resource_name: resource_name.to_string(),
+        });
     }
     crate::event_emit::emit_tx(
         &mut *conn,
@@ -472,123 +488,13 @@ pub async fn update_event_resources(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "event_id": event_id, "added": added }),
-    ))
+    Ok(Json(EventResourceUpdateResult {
+        event_id,
+        added,
+    }))
 }
 
 // ── Events ──
-#[utoipa::path(
-    post,
-    path = "/v1/properties/{property_id}/events",
-    responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Forbidden"),
-    ),
-    security(),
-    tag = "pms",
-)]
-
-pub async fn create_event(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(
-        &state.policy,
-        &a,
-        &headers,
-        sentin8::shield::EvalTarget::new("hotel8:pms:event:write"),
-    )
-    .await?;
-    let env_id = super::resolve_org_env(&a);
-    let mut conn = state.pool.begin().await.map_err(super::err_db)?;
-    super::set_tenant_context(&mut conn, env_id).await;
-    let event_code = format!("EVT-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
-    let row = sqlx::query("INSERT INTO pms.events (property_id, event_code, event_name, event_type, start_date, end_date, status, expected_attendees, banquet_order, contact_name, contact_phone, notes)
-         VALUES ($1, $2, $3, $4, $5::date, $6::date, 'TENTATIVE', $7, $8, $9, $10, $11) RETURNING id, event_code, event_name, status")
-        .bind(property_id)
-        .bind(&event_code)
-        .bind(req.get("event_name").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("event_type").and_then(|v| v.as_str()).unwrap_or("MEETING"))
-        .bind(req.get("start_date").and_then(|v| v.as_str()))
-        .bind(req.get("end_date").and_then(|v| v.as_str()))
-        .bind(req.get("expected_attendees").and_then(|v| v.as_u64()).unwrap_or(0) as i32)
-        .bind(req.get("banquet_order").and_then(|v| v.as_str()))
-        .bind(req.get("contact_name").and_then(|v| v.as_str()))
-        .bind(req.get("contact_phone").and_then(|v| v.as_str()))
-        .bind(req.get("notes").and_then(|v| v.as_str()))
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(super::err_db)?;
-    let event_id: uuid::Uuid = row.get("id");
-    let status: String = row.get("status");
-    crate::event_emit::emit_tx(
-        &mut *conn,
-        env_id,
-        "hotel8:pms:event:created",
-        serde_json::json!({ "event_id": event_id, "event_code": &event_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
-    )
-    .await
-    .map_err(super::err_emit)?;
-    conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": event_id, "event_code": event_code, "status": status }),
-    ))
-}
-
-/// `GET /v1/properties/{property_id}/events`
-#[utoipa::path(
-    get,
-    path = "/v1/properties/{property_id}/events",
-    responses(
-        (status = 200, description = "List of events", body = serde_json::Value),
-        (status = 403, description = "Missing pms:admin scope"),
-    ),
-    security(("pms:admin" = [])),
-    tag = "pms",
-)]
-pub async fn list_events(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(
-        &state.policy,
-        &a,
-        &headers,
-        sentin8::shield::EvalTarget::new("hotel8:pms:event:read"),
-    )
-    .await?;
-    let env_id = super::resolve_org_env(&a);
-    let mut conn = state.pool.begin().await.map_err(super::err_db)?;
-    super::set_tenant_context(&mut conn, env_id).await;
-    let rows = sqlx::query("SELECT id, event_code, event_name, event_type, start_date, end_date, status, expected_attendees FROM pms.events WHERE property_id = $1 ORDER BY start_date DESC")
-        .bind(property_id)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
-        .iter()
-        .map(|r| {
-            let status: String = r.get("status");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "event_code": r.get::<String, _>("event_code"),
-                "event_name": r.get::<String, _>("event_name"),
-                "event_type": r.get::<String, _>("event_type"),
-                "start_date": r.get::<chrono::NaiveDate, _>("start_date"),
-                "end_date": r.get::<chrono::NaiveDate, _>("end_date"),
-                "status": status,
-                "expected_attendees": r.get::<i32, _>("expected_attendees"),
-            })
-        })
-        .collect();
-    conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
-}
+// `POST`/`GET /v1/properties/{property_id}/events` are owned by the
+// `events.rs` handlers (routes + `openapi.rs paths()`); this module only
+// carries the function-space and event-resource endpoints of this section.

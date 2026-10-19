@@ -9,12 +9,13 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{LovCreateRequest, LovEntryList, LovEntryView, LovList, LovRow};
 use sqlx::Row;
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/lov",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "LOV catalog entries for the property", body = LovList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -26,7 +27,7 @@ pub async fn list_lov(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<LovList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -43,27 +44,26 @@ pub async fn list_lov(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<LovRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "lov_type": r.get::<String, _>("lov_type"),
-                "lov_code": r.get::<String, _>("lov_code"),
-                "lov_value": r.get::<String, _>("lov_value"),
-                "is_active": r.get::<bool, _>("is_active"),
-                "sort_order": r.get::<i32, _>("sort_order"),
-            })
+        .map(|r| LovRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            lov_type: r.get::<String, _>("lov_type"),
+            lov_code: r.get::<String, _>("lov_code"),
+            lov_value: r.get::<String, _>("lov_value"),
+            is_active: r.get::<bool, _>("is_active"),
+            sort_order: r.get::<i32, _>("sort_order"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(LovList { items }))
 }
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/lov",
+    request_body = LovCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Created LOV entry", body = LovRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -75,8 +75,8 @@ pub async fn create_lov(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<LovCreateRequest>,
+) -> Result<Json<LovRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -90,11 +90,11 @@ pub async fn create_lov(
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query("INSERT INTO pms.lov (property_id, lov_type, lov_code, lov_value, is_active, sort_order) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, lov_type, lov_code, lov_value, is_active, sort_order")
         .bind(property_id)
-        .bind(req.get("lov_type").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("lov_code").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("lov_value").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(req.get("is_active").and_then(|v| v.as_bool()).unwrap_or(true))
-        .bind(req.get("sort_order").and_then(|v| v.as_u64()).unwrap_or(0) as i32)
+        .bind(&req.lov_type)
+        .bind(&req.lov_code)
+        .bind(&req.lov_value)
+        .bind(req.is_active)
+        .bind(req.sort_order)
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
@@ -109,20 +109,20 @@ pub async fn create_lov(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "lov_type": row.get::<String, _>("lov_type"),
-        "lov_code": row.get::<String, _>("lov_code"),
-        "lov_value": row.get::<String, _>("lov_value"),
-        "is_active": row.get::<bool, _>("is_active"),
-        "sort_order": row.get::<i32, _>("sort_order"),
-    })))
+    Ok(Json(LovRow {
+        id,
+        lov_type: row.get::<String, _>("lov_type"),
+        lov_code: row.get::<String, _>("lov_code"),
+        lov_value: row.get::<String, _>("lov_value"),
+        is_active: row.get::<bool, _>("is_active"),
+        sort_order: row.get::<i32, _>("sort_order"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/lov/{lov_type}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Active LOV entries of the given type", body = LovEntryList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -134,7 +134,7 @@ pub async fn list_lov_by_type(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, lov_type)): Path<(uuid::Uuid, String)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<LovEntryList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -152,16 +152,14 @@ pub async fn list_lov_by_type(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<LovEntryView> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "lov_code": r.get::<String, _>("lov_code"),
-                "lov_value": r.get::<String, _>("lov_value"),
-            })
+        .map(|r| LovEntryView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            lov_code: r.get::<String, _>("lov_code"),
+            lov_value: r.get::<String, _>("lov_value"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(LovEntryList { items }))
 }

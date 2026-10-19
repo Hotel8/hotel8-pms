@@ -13,8 +13,9 @@ use hotel8::pms::contracts::{Property, PropertyCreate};
 #[utoipa::path(
     post,
     path = "/v1/properties",
+    request_body = PropertyCreate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Created property", body = Property),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -71,7 +72,7 @@ pub async fn create_property(
     get,
     path = "/v1/properties",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Properties of the environment", body = [Property]),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -106,9 +107,10 @@ pub async fn list_properties(
     get,
     path = "/v1/properties/{property_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "The property", body = Property),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Property not found"),
     ),
     security(),
     tag = "pms",
@@ -144,8 +146,9 @@ pub async fn get_property(
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}",
+    request_body = PropertyCreate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated property", body = Property),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -202,7 +205,7 @@ pub async fn update_property(
     delete,
     path = "/v1/properties/{property_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Property deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),

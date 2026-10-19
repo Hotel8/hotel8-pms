@@ -9,6 +9,11 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pms::contracts::{
+    HkBoardList, HkBoardRow, HkStatusChangeRequest, HkStatusResult, HkTaskCreateRequest,
+    HkTaskCreated, HkTaskList, HkTaskUpdateRequest, HkTaskUpdateResult, HkTaskView,
+    HousekeepingForecast,
+};
 use sqlx::Row;
 
 /// `GET /v1/properties/{property_id}/housekeeping`
@@ -16,7 +21,7 @@ use sqlx::Row;
     get,
     path = "/v1/properties/{property_id}/housekeeping",
     responses(
-        (status = 200, description = "List of housekeeping tasks", body = serde_json::Value),
+        (status = 200, description = "Housekeeping rooms board", body = HkBoardList),
         (status = 403, description = "Missing pms:admin scope"),
     ),
     security(("pms:admin" = [])),
@@ -26,7 +31,7 @@ pub async fn list_housekeeping_tasks(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<HkBoardList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -43,30 +48,35 @@ pub async fn list_housekeeping_tasks(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
+    let items: Vec<HkBoardRow> = rows.iter().map(|r| {
         let hk: String = r.get("housekeeping_status");
         let fo: String = r.get("front_office_status");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"),
-            "room_number": r.get::<String, _>("room_number"),
-            "floor": r.get::<String, _>("floor"),
-            "building": r.get::<String, _>("building"),
-            "housekeeping_status": hk,
-            "front_office_status": fo,
-            "last_cleaned_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_cleaned_at"),
-            "last_inspected_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_inspected_at"),
-        })
+        HkBoardRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            room_number: r.get::<String, _>("room_number"),
+            floor: r.get::<String, _>("floor"),
+            building: r.get::<String, _>("building"),
+            housekeeping_status: hk,
+            front_office_status: fo,
+            last_cleaned_at: r
+                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_cleaned_at"),
+            last_inspected_at: r
+                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_inspected_at"),
+        }
     }).collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(HkBoardList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/housekeeping/{room_number}",
+    request_body = HkStatusChangeRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Housekeeping status updated", body = HkStatusResult),
+        (status = 400, description = "Invalid status (DIRTY | CLEAN | INSPECTED)"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Room not found"),
     ),
     security(),
     tag = "pms",
@@ -76,8 +86,8 @@ pub async fn update_housekeeping_status(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, room_number)): Path<(uuid::Uuid, String)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<HkStatusChangeRequest>,
+) -> Result<Json<HkStatusResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -89,10 +99,7 @@ pub async fn update_housekeeping_status(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let status = req
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("CLEAN");
+    let status = req.status.as_str();
     let hk_expr = match status {
         "DIRTY" => "'DIRTY'",
         "CLEAN" => "'CLEAN'",
@@ -138,17 +145,19 @@ pub async fn update_housekeeping_status(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "room_number": room_number, "housekeeping_status": hk }),
-    ))
+    Ok(Json(HkStatusResult {
+        room_number,
+        housekeeping_status: hk,
+    }))
 }
 
-// ── -Housekeeping Tasks ──
+// ── Housekeeping Tasks ──
 #[utoipa::path(
     post,
     path = "/v1/properties/{property_id}/housekeeping/tasks",
+    request_body = HkTaskCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Created housekeeping task", body = HkTaskCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -160,8 +169,8 @@ pub async fn create_task(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<HkTaskCreateRequest>,
+) -> Result<Json<HkTaskCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -173,32 +182,34 @@ pub async fn create_task(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let room_number = req.get("room_number").and_then(|v| v.as_str());
-    let task_type = req
-        .get("task_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("CLEAN");
-    let priority = req
-        .get("priority")
-        .and_then(|v| v.as_str())
-        .unwrap_or("NORMAL");
-    let assigned_to = req.get("assigned_to").and_then(|v| v.as_str());
-    let notes = req.get("notes").and_then(|v| v.as_str());
+    let room_number = req.room_number.as_deref();
+    let task_type = req.task_type.as_str();
+    let priority = req.priority.as_str();
+    let assigned_to = req.assigned_to.as_deref();
+    let notes = req.notes.as_deref();
     let row = sqlx::query("INSERT INTO pms.hk_tasks (property_id, room_number, task_type, priority, assigned_to, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, room_number, task_type, status, priority, assigned_to, notes, created_at")
         .bind(property_id).bind(room_number).bind(task_type).bind(priority).bind(assigned_to).bind(notes)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
     let status: String = row.get("status");
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "property_id": property_id, "room_number": row.get::<Option<String>, _>("room_number"), "task_type": row.get::<String, _>("task_type"), "status": status, "priority": row.get::<String, _>("priority"), "assigned_to": row.get::<Option<String>, _>("assigned_to"), "notes": row.get::<Option<String>, _>("notes"), "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at") }),
-    ))
+    Ok(Json(HkTaskCreated {
+        id,
+        property_id,
+        room_number: row.get::<Option<String>, _>("room_number"),
+        task_type: row.get::<String, _>("task_type"),
+        status,
+        priority: row.get::<String, _>("priority"),
+        assigned_to: row.get::<Option<String>, _>("assigned_to"),
+        notes: row.get::<Option<String>, _>("notes"),
+        created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/properties/{property_id}/housekeeping/tasks",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Housekeeping tasks of the property", body = HkTaskList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -211,7 +222,7 @@ pub async fn list_tasks(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<HkTaskList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -231,22 +242,28 @@ pub async fn list_tasks(
         (None, Some(asg)) => sqlx::query("SELECT id, room_number, task_type, status, priority, assigned_to, notes, created_at FROM pms.hk_tasks WHERE property_id = $1 AND assigned_to = $2 ORDER BY created_at").bind(property_id).bind(asg).fetch_all(&mut *conn).await,
         (None, None) => sqlx::query("SELECT id, room_number, task_type, status, priority, assigned_to, notes, created_at FROM pms.hk_tasks WHERE property_id = $1 ORDER BY created_at").bind(property_id).fetch_all(&mut *conn).await,
     }.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| { let s: String = r.get("status"); serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "room_number": r.get::<Option<String>, _>("room_number"),
-        "task_type": r.get::<String, _>("task_type"), "status": s, "priority": r.get::<String, _>("priority"),
-        "assigned_to": r.get::<Option<String>, _>("assigned_to"), "notes": r.get::<Option<String>, _>("notes"),
-        "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    })}).collect();
+    let items: Vec<HkTaskView> = rows.iter().map(|r| { let s: String = r.get("status"); HkTaskView {
+        id: r.get::<uuid::Uuid, _>("id"),
+        room_number: r.get::<Option<String>, _>("room_number"),
+        task_type: r.get::<String, _>("task_type"),
+        status: s,
+        priority: r.get::<String, _>("priority"),
+        assigned_to: r.get::<Option<String>, _>("assigned_to"),
+        notes: r.get::<Option<String>, _>("notes"),
+        created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    }}).collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(HkTaskList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/properties/{property_id}/housekeeping/tasks/{task_id}",
+    request_body = HkTaskUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated housekeeping task", body = HkTaskUpdateResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Task not found"),
     ),
     security(),
     tag = "pms",
@@ -256,8 +273,8 @@ pub async fn update_task(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, task_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<HkTaskUpdateRequest>,
+) -> Result<Json<HkTaskUpdateResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -269,8 +286,8 @@ pub async fn update_task(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let new_status = req.get("status").and_then(|v| v.as_str()).unwrap_or("OPEN");
-    let assigned_to = req.get("assigned_to").and_then(|v| v.as_str());
+    let new_status = req.status.as_str();
+    let assigned_to = req.assigned_to.as_deref();
     let row = sqlx::query("UPDATE pms.hk_tasks SET status = $3, assigned_to = COALESCE($4, assigned_to), updated_at = now() WHERE id = $1 AND property_id = $2 RETURNING id, status, assigned_to")
         .bind(task_id).bind(property_id).bind(new_status).bind(assigned_to)
         .fetch_one(&mut *conn).await.map_err(|e| match e { sqlx::Error::RowNotFound => super::err_not_found("Task not found"), e => super::err_db(e) })?;
@@ -285,9 +302,11 @@ pub async fn update_task(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "status": status, "assigned_to": row.get::<Option<String>, _>("assigned_to") }),
-    ))
+    Ok(Json(HkTaskUpdateResult {
+        id: row.get::<uuid::Uuid, _>("id"),
+        status,
+        assigned_to: row.get::<Option<String>, _>("assigned_to"),
+    }))
 }
 
 // ── Housekeeping Forecast ──
@@ -295,7 +314,7 @@ pub async fn update_task(
     get,
     path = "/v1/properties/{property_id}/housekeeping/forecast",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Housekeeping forecast for the business date", body = HousekeepingForecast),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -307,7 +326,7 @@ pub async fn get_forecast(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<HousekeepingForecast>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -331,12 +350,12 @@ pub async fn get_forecast(
     let open_tasks = sqlx::query("SELECT COUNT(*)::int as cnt FROM pms.hk_tasks WHERE property_id = $1 AND status IN ('OPEN', 'IN_PROGRESS')")
         .bind(property_id).fetch_one(&mut *conn).await.map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "date": today,
-        "expected_arrivals": expected_checkouts.get::<i32, _>("cnt"),
-        "stayovers": stayovers.get::<i32, _>("cnt"),
-        "expected_departures": departures.get::<i32, _>("cnt"),
-        "dirty_rooms": dirty_rooms.get::<i32, _>("cnt"),
-        "open_tasks": open_tasks.get::<i32, _>("cnt"),
-    })))
+    Ok(Json(HousekeepingForecast {
+        date: today,
+        expected_arrivals: expected_checkouts.get::<i32, _>("cnt"),
+        stayovers: stayovers.get::<i32, _>("cnt"),
+        expected_departures: departures.get::<i32, _>("cnt"),
+        dirty_rooms: dirty_rooms.get::<i32, _>("cnt"),
+        open_tasks: open_tasks.get::<i32, _>("cnt"),
+    }))
 }

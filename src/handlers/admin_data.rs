@@ -20,13 +20,32 @@ use sqlx::Row;
 
 use crate::auth;
 use crate::handlers::AppState;
+/// The resource-polymorphic admin-read document (described per-resource in
+/// the endpoint description: `{items:[...]}` tables, single-object settings/
+/// overview, and the array reports - honest transparent wrapper).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[serde(transparent)]
+pub struct PmsAdminData(
+    /// The per-resource document.
+    pub serde_json::Value,
+);
+
+/// The form-submit alias response (the aliased public handler's typed
+/// response verbatim - honest transparent wrapper).
+#[derive(Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(transparent)]
+pub struct PmsAdminSubmit(
+    /// The aliased handler's response.
+    pub serde_json::Value,
+);
 #[utoipa::path(
     get,
     path = "/v1/admin/{property_id}/{resource}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - resource-polymorphic admin read for the RFW DataTable. Shapes per resource: table resources (reservations, frontdesk, housekeeping, rates, blocks, events, profiles, companies, company_users, negotiated_rates) return {items: [row objects whose cells are all strings]} with per-resource column sets - reservations: id/confirmation_number/guest_name/status/check_in/check_out/num_rooms; frontdesk: id/confirmation_number/guest_name/status/room/checked_in_at; housekeeping: room_number/fo_status/status/assigned_to; rates: id/rate_plan_code/rate_plan_name/rate_category/currency_code/active/min_los/negotiated; blocks: id/block_code/block_name/blocked_rooms/status/start_date/end_date; events: id/event_code/event_name/event_type/status/start_date/end_date/expected_attendees; profiles: id/profile_type/guest_name/email/company_name/loyalty_number/vip_status; companies: id/company_name/email/sso_provider/credit_approvals; company_users: id/role_at_company/is_default/traveler_name/email; negotiated_rates: id/rate_plan_code/rate_plan_name/rate_category/currency_code/active/linked_companies. reports returns a JSON array of {date, reservations, guests}. settings returns {property_code, property_name, timezone, currency_code, languages}. overview returns {arrivals_today, departures_today, in_house, dirty_rooms}.", body = PmsAdminData),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Unknown admin resource"),
     ),
     security(),
     tag = "pms-admin",
@@ -39,7 +58,7 @@ pub async fn get_admin_data(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     Path(resource): Path<String>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PmsAdminData>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     let action = action_for(&resource, false)?;
     crate::policy::require(
@@ -131,7 +150,7 @@ pub async fn get_admin_data(
             .await
             .map_err(super::err_db)?;
             conn.commit().await.map_err(super::err_db)?;
-            Ok(Json(serde_json::Value::Array(
+            Ok(Json(PmsAdminData(serde_json::Value::Array(
                 rows.iter()
                     .map(|r| {
                         serde_json::json!({
@@ -141,7 +160,7 @@ pub async fn get_admin_data(
                         })
                     })
                     .collect(),
-            )))
+            ))))
         }
         "settings" => {
             let row = sqlx::query("SELECT property_code, property_name, timezone, currency_code, languages FROM pms.properties WHERE id = $1")
@@ -153,13 +172,13 @@ pub async fn get_admin_data(
                     e => super::err_db(e),
                 })?;
             conn.commit().await.map_err(super::err_db)?;
-            Ok(Json(serde_json::json!({
+            Ok(Json(PmsAdminData(serde_json::json!({
                 "property_code": row.get::<String, _>("property_code"),
                 "property_name": row.get::<String, _>("property_name"),
                 "timezone": row.get::<String, _>("timezone"),
                 "currency_code": row.get::<String, _>("currency_code"),
                 "languages": row.get::<serde_json::Value, _>("languages"),
-            })))
+            }))))
         }
         "overview" => {
             let today = sqlx::query(
@@ -174,12 +193,12 @@ pub async fn get_admin_data(
             .await
             .map_err(super::err_db)?;
             conn.commit().await.map_err(super::err_db)?;
-            Ok(Json(serde_json::json!({
+            Ok(Json(PmsAdminData(serde_json::json!({
                 "arrivals_today": today.get::<i32, _>("arrivals_today"),
                 "departures_today": today.get::<i32, _>("departures_today"),
                 "in_house": today.get::<i32, _>("in_house"),
                 "dirty_rooms": today.get::<i32, _>("dirty_rooms"),
-            })))
+            }))))
         }
         "companies" => admin_rows(
             &mut conn,
@@ -223,9 +242,10 @@ pub async fn get_admin_data(
     post,
     path = "/v1/admin/{property_id}/{resource}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - resource-polymorphic submit alias; the response is the aliased public handler's typed response verbatim (reservations: ReservationResponse; blocks: BlockCreated; events: EventCreated; profiles: ProfileCreated; company_payment_methods: CompanyPaymentMethod; company_users: CompanyUserBound; rate_links: LinkCompanyResult). The request body is the aliased handler's typed request, except rate_links which reads {company_profile_id, rate_plan_id}.", body = PmsAdminSubmit),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "No submit surface for the resource"),
     ),
     security(),
     tag = "pms-admin",
@@ -239,7 +259,7 @@ pub async fn submit_admin_data(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, resource)): Path<(uuid::Uuid, String)>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<PmsAdminSubmit>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     let action = action_for(&resource, true)?;
@@ -252,52 +272,82 @@ pub async fn submit_admin_data(
     .await?;
     match resource.as_str() {
         "reservations" => {
-            super::reservations::create_reservation(
-                State(state),
-                headers,
-                Path(property_id),
-                Json(req),
-            )
-            .await
+            let body: hotel8::pms::contracts::ReservationCreateRequest =
+                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) =
+                super::reservations::create_reservation(
+                    State(state),
+                    headers,
+                    Path(property_id),
+                    Json(body),
+                )
+                .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "blocks" => {
-            super::blocks::create_block(State(state), headers, Path(property_id), Json(req)).await
+            let body: hotel8::pms::contracts::BlockCreateRequest =
+                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) =
+                super::blocks::create_block(State(state), headers, Path(property_id), Json(body))
+                    .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "events" => {
-            super::events::create_event(State(state), headers, Path(property_id), Json(req)).await
+            let body: hotel8::pms::contracts::EventCreateRequest =
+                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) =
+                super::events::create_event(State(state), headers, Path(property_id), Json(body))
+                    .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "profiles" => {
-            super::profiles::create_profile(State(state), headers, Path(property_id), Json(req))
-                .await
+            let body: hotel8::pms::contracts::ProfileCreateRequest =
+                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) =
+                super::profiles::create_profile(State(state), headers, Path(property_id), Json(body))
+                    .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         // Corporate admin page (ECRP-2): credit methods + user bindings via
         // the SAME staff handlers (shared business rules, DESIGN.md §4).
         "company_payment_methods" => {
-            super::staff_corporate::create_company_payment_method(
+            let body: hotel8::pms::contracts::CompanyPaymentMethodInput =
+                serde_json::from_value(req.0.clone())
+                    .map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) = super::staff_corporate::create_company_payment_method(
                 State(state),
                 headers,
-                Path(corporate_pair(property_id, &req)?),
-                Json(req),
+                Path(corporate_pair(property_id, &req.0)?),
+                Json(body),
             )
-            .await
+            .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "company_users" => {
-            super::staff_corporate::create_company_user(
+            let body: hotel8::pms::contracts::CompanyUserInput =
+                serde_json::from_value(req.0.clone())
+                    .map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) = super::staff_corporate::create_company_user(
                 State(state),
                 headers,
-                Path(corporate_pair(property_id, &req)?),
-                Json(req),
+                Path(corporate_pair(property_id, &req.0)?),
+                Json(body),
             )
-            .await
+            .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "rate_links" => {
-            super::rate_plans::link_negotiated_rate_to_company(
+            let body: hotel8::pms::contracts::LinkCompanyRequest =
+                serde_json::from_value(req.0.clone())
+                    .map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) = super::rate_plans::link_negotiated_rate_to_company(
                 State(state),
                 headers,
-                Path(rate_link_pair(property_id, &req)?),
-                Json(req),
+                Path(rate_link_pair(property_id, &req.0)?),
+                Json(body),
             )
-            .await
+            .await?;
+            Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         _ => Err(super::err_not_found(&format!(
             "No submit surface for admin resource: {resource}"
@@ -378,7 +428,7 @@ async fn admin_rows(
     sql: &str,
     property_id: uuid::Uuid,
     columns: &[&str],
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PmsAdminData>, (StatusCode, String)> {
     let rows = sqlx::query(sql)
         .bind(property_id)
         .fetch_all(conn)
@@ -398,5 +448,5 @@ async fn admin_rows(
             serde_json::Value::Object(obj)
         })
         .collect();
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(PmsAdminData(serde_json::json!({ "items": items }))))
 }

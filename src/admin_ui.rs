@@ -19,9 +19,10 @@ use sentin8::rfw::widget::*;
     get,
     path = "/v1/admin/ui/{page}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK - RFW page definition rendered by Sentin8:Dash: the SDK envelope tagged response_type = page|redirect|error (page carries the AdminPage widget tree; error carries message + code). Defined by sentin8::rfw; not re-schemaed here.", body = sentin8::rfw::AdminUiResponse),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
+        (status = 404, description = "Unknown admin UI page"),
     ),
     security(),
     tag = "pms-admin",
@@ -31,7 +32,7 @@ pub async fn get_admin_ui(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(page): Path<String>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+) -> Result<Json<AdminUiResponse>, (axum::http::StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -403,9 +404,7 @@ pub async fn get_admin_ui(
             ))
         }
     };
-    Ok(Json(
-        serde_json::to_value(AdminUiResponse::page(def)).unwrap(),
-    ))
+    Ok(Json(AdminUiResponse::page(def)))
 }
 
 #[allow(dead_code)]
