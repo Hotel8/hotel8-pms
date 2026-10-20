@@ -21,8 +21,7 @@ use hotel8::pms::contracts::{
     AdminProvisioningResult, AdminProvisioningStatus, CompanyPaymentMethod,
     CompanyPaymentMethodInput, CompanyPaymentMethodList, CompanyUserBound, CompanyUserInput,
     CompanyUserList, CompanyUserView, KioskConfig, KioskConfigUpdate, ProvisionAdminRequest,
-    ReservationUpdateRequest, TravelerCompany, TravelerCompanyList,
-    WalkInCreated, WalkInRequest,
+    ReservationUpdateRequest, TravelerCompany, TravelerCompanyList, WalkInCreated, WalkInRequest,
 };
 
 use crate::auth;
@@ -852,8 +851,8 @@ pub async fn provision_company_admin(
     }
 
     // Resolve or create the first admin's traveler profile by email.
-    let email = some_nonempty(&req.email)
-        .ok_or_else(|| super::err_bad_request("email required"))?;
+    let email =
+        some_nonempty(&req.email).ok_or_else(|| super::err_bad_request("email required"))?;
     let first_name = req.first_name.as_str();
     let last_name = req.last_name.as_str();
     let existing: Option<uuid::Uuid> = sqlx::query(

@@ -11,14 +11,12 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pms::contracts::{
-    AsyncJobRequest,
-    AsyncJobStatus, CashieringAsyncRequest, ChannelPerformanceReport, ChannelPerformanceRow,
-    CrmAsyncRequest, DeliveryConfig, EodException, EodExceptionList, EodReportSummary,
-    EodRetryResult,
-    EodStep, EndOfDayResult, ExternalSystemConfig, GuestHistoryReport, GuestHistoryRow,
-    HousekeepingAnalysisReport, HousekeepingAnalysisRow, InventoryAsyncRequest, MarketSegmentReport,
-    MarketSegmentRow, OccupancyDay, OccupancyReport, ParAsyncRequest, PropertyConfig,
-    PropertyModule, PropertyModuleList, RateAnalysisReport,
+    AsyncJobRequest, AsyncJobStatus, CashieringAsyncRequest, ChannelPerformanceReport,
+    ChannelPerformanceRow, CrmAsyncRequest, DeliveryConfig, EndOfDayResult, EodException,
+    EodExceptionList, EodReportSummary, EodRetryResult, EodStep, ExternalSystemConfig,
+    GuestHistoryReport, GuestHistoryRow, HousekeepingAnalysisReport, HousekeepingAnalysisRow,
+    InventoryAsyncRequest, MarketSegmentReport, MarketSegmentRow, OccupancyDay, OccupancyReport,
+    ParAsyncRequest, PropertyConfig, PropertyModule, PropertyModuleList, RateAnalysisReport,
     RateAnalysisRow, ReservationSummaryReport, RevenueLine, RevenueReport, SalesCateringReport,
     SalesCateringRow, UpdateAcknowledgement,
 };
@@ -310,8 +308,8 @@ pub async fn end_of_day(
         occupied_rooms: occupancy.get::<i32, _>("occupied"),
         total_rooms: occupancy.get::<i32, _>("total"),
     };
-    let report_data =
-        serde_json::to_value(&report_summary).map_err(|e| super::err_bad_request(&e.to_string()))?;
+    let report_data = serde_json::to_value(&report_summary)
+        .map_err(|e| super::err_bad_request(&e.to_string()))?;
     steps.push(EodStep {
         step: "generate_reports".into(),
         status: "completed".into(),
@@ -558,7 +556,15 @@ pub async fn create_inventory_async(
     Json(req): Json<InventoryAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
     let operation = req.operation.clone();
-    create_module_async_job(&state, &headers, property_id, "INVENTORY", &operation, serde_json::to_value(req).unwrap_or_default()).await
+    create_module_async_job(
+        &state,
+        &headers,
+        property_id,
+        "INVENTORY",
+        &operation,
+        serde_json::to_value(req).unwrap_or_default(),
+    )
+    .await
 }
 #[utoipa::path(
     post,
@@ -580,7 +586,15 @@ pub async fn create_cashiering_async(
     Json(req): Json<CashieringAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
     let operation = req.operation.clone();
-    create_module_async_job(&state, &headers, property_id, "CASHIERING", &operation, serde_json::to_value(req).unwrap_or_default()).await
+    create_module_async_job(
+        &state,
+        &headers,
+        property_id,
+        "CASHIERING",
+        &operation,
+        serde_json::to_value(req).unwrap_or_default(),
+    )
+    .await
 }
 #[utoipa::path(
     post,
@@ -602,7 +616,15 @@ pub async fn create_crm_async(
     Json(req): Json<CrmAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
     let operation = req.operation.clone();
-    create_module_async_job(&state, &headers, property_id, "CRM", &operation, serde_json::to_value(req).unwrap_or_default()).await
+    create_module_async_job(
+        &state,
+        &headers,
+        property_id,
+        "CRM",
+        &operation,
+        serde_json::to_value(req).unwrap_or_default(),
+    )
+    .await
 }
 #[utoipa::path(
     post,
@@ -624,7 +646,15 @@ pub async fn create_par_async(
     Json(req): Json<ParAsyncRequest>,
 ) -> Result<(StatusCode, [(String, String); 1], String), (StatusCode, String)> {
     let operation = req.operation.clone();
-    create_module_async_job(&state, &headers, property_id, "PAR", &operation, serde_json::to_value(req).unwrap_or_default()).await
+    create_module_async_job(
+        &state,
+        &headers,
+        property_id,
+        "PAR",
+        &operation,
+        serde_json::to_value(req).unwrap_or_default(),
+    )
+    .await
 }
 
 /// Internal helper to create a module-specific async job.
@@ -698,9 +728,27 @@ pub async fn get_external_system_config(
     Ok(Json(ExternalSystemConfig {
         property_id,
         delivery_configs: vec![
-            DeliveryConfig { system: "FLOW8".into(), webhook_url: "/flow/v1/hooks/pms".into(), retry_count: 3, retry_delay_seconds: 60, is_enabled: true },
-            DeliveryConfig { system: "FUNC8".into(), webhook_url: "/func/v1/hooks/pms".into(), retry_count: 3, retry_delay_seconds: 30, is_enabled: true },
-            DeliveryConfig { system: "POST8".into(), webhook_url: "/post/v1/hooks/pms".into(), retry_count: 5, retry_delay_seconds: 120, is_enabled: true },
+            DeliveryConfig {
+                system: "FLOW8".into(),
+                webhook_url: "/flow/v1/hooks/pms".into(),
+                retry_count: 3,
+                retry_delay_seconds: 60,
+                is_enabled: true,
+            },
+            DeliveryConfig {
+                system: "FUNC8".into(),
+                webhook_url: "/func/v1/hooks/pms".into(),
+                retry_count: 3,
+                retry_delay_seconds: 30,
+                is_enabled: true,
+            },
+            DeliveryConfig {
+                system: "POST8".into(),
+                webhook_url: "/post/v1/hooks/pms".into(),
+                retry_count: 5,
+                retry_delay_seconds: 120,
+                is_enabled: true,
+            },
         ],
     }))
 }

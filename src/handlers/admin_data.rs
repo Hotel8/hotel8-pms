@@ -273,39 +273,43 @@ pub async fn submit_admin_data(
     match resource.as_str() {
         "reservations" => {
             let body: hotel8::pms::contracts::ReservationCreateRequest =
-                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
-            let Json(resp) =
-                super::reservations::create_reservation(
-                    State(state),
-                    headers,
-                    Path(property_id),
-                    Json(body),
-                )
-                .await?;
+                serde_json::from_value(req.0)
+                    .map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) = super::reservations::create_reservation(
+                State(state),
+                headers,
+                Path(property_id),
+                Json(body),
+            )
+            .await?;
             Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "blocks" => {
-            let body: hotel8::pms::contracts::BlockCreateRequest =
-                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let body: hotel8::pms::contracts::BlockCreateRequest = serde_json::from_value(req.0)
+                .map_err(|e| super::err_bad_request(&e.to_string()))?;
             let Json(resp) =
                 super::blocks::create_block(State(state), headers, Path(property_id), Json(body))
                     .await?;
             Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "events" => {
-            let body: hotel8::pms::contracts::EventCreateRequest =
-                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let body: hotel8::pms::contracts::EventCreateRequest = serde_json::from_value(req.0)
+                .map_err(|e| super::err_bad_request(&e.to_string()))?;
             let Json(resp) =
                 super::events::create_event(State(state), headers, Path(property_id), Json(body))
                     .await?;
             Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         "profiles" => {
-            let body: hotel8::pms::contracts::ProfileCreateRequest =
-                serde_json::from_value(req.0).map_err(|e| super::err_bad_request(&e.to_string()))?;
-            let Json(resp) =
-                super::profiles::create_profile(State(state), headers, Path(property_id), Json(body))
-                    .await?;
+            let body: hotel8::pms::contracts::ProfileCreateRequest = serde_json::from_value(req.0)
+                .map_err(|e| super::err_bad_request(&e.to_string()))?;
+            let Json(resp) = super::profiles::create_profile(
+                State(state),
+                headers,
+                Path(property_id),
+                Json(body),
+            )
+            .await?;
             Ok(Json(serde_json::to_value(resp).unwrap_or_default()))
         }
         // Corporate admin page (ECRP-2): credit methods + user bindings via

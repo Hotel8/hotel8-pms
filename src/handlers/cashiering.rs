@@ -143,10 +143,7 @@ pub async fn post_charge(
     let folio_id: uuid::Uuid = folio.get("id");
     let charge_code = req.charge_code;
     let description = req.description;
-    let amount: rust_decimal::Decimal = req
-        .amount
-        .parse()
-        .unwrap_or_default();
+    let amount: rust_decimal::Decimal = req.amount.parse().unwrap_or_default();
     let quantity: i32 = req.quantity;
     let row = sqlx::query("INSERT INTO pms.folio_charges (folio_id, charge_code, description, amount, quantity) VALUES ($1, $2, $3, $4::numeric, $5) RETURNING id, charge_code, description, amount::text as amount, quantity, created_at")
         .bind(folio_id)
@@ -220,10 +217,7 @@ pub async fn post_payment(
         })?;
     let folio_id: uuid::Uuid = folio.get("id");
     let payment_code = req.payment_code;
-    let amount: rust_decimal::Decimal = req
-        .amount
-        .parse()
-        .unwrap_or_default();
+    let amount: rust_decimal::Decimal = req.amount.parse().unwrap_or_default();
     let reference = req.reference;
     let row = sqlx::query("INSERT INTO pms.folio_payments (folio_id, payment_code, amount, reference) VALUES ($1, $2, $3::numeric, $4) RETURNING id, payment_code, amount::text as amount, reference, created_at")
         .bind(folio_id)

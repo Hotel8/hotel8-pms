@@ -14,8 +14,8 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pms::contracts::{
-    CorporateAvailability, GuaranteePolicyList, OrgAvailability, PackageList,
-    PropertyAvailability, RatePlanQuote, RoomTypeAvailability,
+    CorporateAvailability, GuaranteePolicyList, OrgAvailability, PackageList, PropertyAvailability,
+    RatePlanQuote, RoomTypeAvailability,
 };
 use sqlx::Row;
 
@@ -161,23 +161,28 @@ pub async fn search_availability(
                 return None;
             }
             // Get matching rate plans for this room type
-            let rp_items: Vec<RatePlanQuote> = rate_plans.iter().filter_map(|rp| {
-            let min_los: Option<i32> = rp.get("min_los");
-            let max_los: Option<i32> = rp.get("max_los");
-            let min_adv: Option<i32> = rp.get("min_advance_booking");
-            // Apply restrictions
-            if !restrictions_allow(num_nights, advance_days, min_los, max_los, min_adv) {
-                return None;
-            }
-            Some(RatePlanQuote {
-                rate_plan_id: rp.get::<uuid::Uuid, _>("id"),
-                rate_plan_code: rp.get::<String, _>("rate_plan_code"),
-                rate_plan_name: rp.get::<String, _>("rate_plan_name"),
-                currency_code: rp.get::<String, _>("currency_code"),
-                rate_amount: rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
-                negotiated: None,
-            })
-        }).collect();
+            let rp_items: Vec<RatePlanQuote> = rate_plans
+                .iter()
+                .filter_map(|rp| {
+                    let min_los: Option<i32> = rp.get("min_los");
+                    let max_los: Option<i32> = rp.get("max_los");
+                    let min_adv: Option<i32> = rp.get("min_advance_booking");
+                    // Apply restrictions
+                    if !restrictions_allow(num_nights, advance_days, min_los, max_los, min_adv) {
+                        return None;
+                    }
+                    Some(RatePlanQuote {
+                        rate_plan_id: rp.get::<uuid::Uuid, _>("id"),
+                        rate_plan_code: rp.get::<String, _>("rate_plan_code"),
+                        rate_plan_name: rp.get::<String, _>("rate_plan_name"),
+                        currency_code: rp.get::<String, _>("currency_code"),
+                        rate_amount: rp
+                            .get::<Option<String>, _>("rate_amount")
+                            .unwrap_or_default(),
+                        negotiated: None,
+                    })
+                })
+                .collect();
             if rp_items.is_empty() {
                 return None;
             }
@@ -333,22 +338,27 @@ pub async fn corporate_availability(
             if num_adults > max_occ {
                 return None;
             }
-            let rp_items: Vec<RatePlanQuote> = rate_plans.iter().filter_map(|rp| {
-            let min_los: Option<i32> = rp.get("min_los");
-            let max_los: Option<i32> = rp.get("max_los");
-            let min_adv: Option<i32> = rp.get("min_advance_booking");
-            if !restrictions_allow(num_nights, advance_days, min_los, max_los, min_adv) {
-                return None;
-            }
-            Some(RatePlanQuote {
-                rate_plan_id: rp.get::<uuid::Uuid, _>("id"),
-                rate_plan_code: rp.get::<String, _>("rate_plan_code"),
-                rate_plan_name: rp.get::<String, _>("rate_plan_name"),
-                currency_code: rp.get::<String, _>("currency_code"),
-                rate_amount: rp.get::<Option<String>, _>("rate_amount").unwrap_or_default(),
-                negotiated: Some(true),
-            })
-        }).collect();
+            let rp_items: Vec<RatePlanQuote> = rate_plans
+                .iter()
+                .filter_map(|rp| {
+                    let min_los: Option<i32> = rp.get("min_los");
+                    let max_los: Option<i32> = rp.get("max_los");
+                    let min_adv: Option<i32> = rp.get("min_advance_booking");
+                    if !restrictions_allow(num_nights, advance_days, min_los, max_los, min_adv) {
+                        return None;
+                    }
+                    Some(RatePlanQuote {
+                        rate_plan_id: rp.get::<uuid::Uuid, _>("id"),
+                        rate_plan_code: rp.get::<String, _>("rate_plan_code"),
+                        rate_plan_name: rp.get::<String, _>("rate_plan_name"),
+                        currency_code: rp.get::<String, _>("currency_code"),
+                        rate_amount: rp
+                            .get::<Option<String>, _>("rate_amount")
+                            .unwrap_or_default(),
+                        negotiated: Some(true),
+                    })
+                })
+                .collect();
             if rp_items.is_empty() {
                 return None;
             }

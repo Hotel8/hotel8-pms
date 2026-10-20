@@ -10,8 +10,8 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pms::contracts::{
-    InventoryList, InventoryRow, ItemCreateRequest, ItemList, ItemUpdateRequest, ItemView,
-    Room, RoomCreate, RoomStatusUpdate, RoomType, RoomTypeCreate, SellLimitResult,
+    InventoryList, InventoryRow, ItemCreateRequest, ItemList, ItemUpdateRequest, ItemView, Room,
+    RoomCreate, RoomStatusUpdate, RoomType, RoomTypeCreate, SellLimitResult,
     SellLimitUpdateRequest,
 };
 use sqlx::Row;

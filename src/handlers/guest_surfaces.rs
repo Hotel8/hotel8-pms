@@ -200,10 +200,7 @@ pub async fn issue_digital_key(
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(IssuedKeyList {
-        items: issued
-            .iter()
-            .map(|i| IssuedKeyRef { id: *i })
-            .collect(),
+        items: issued.iter().map(|i| IssuedKeyRef { id: *i }).collect(),
     }))
 }
 #[utoipa::path(
@@ -518,8 +515,10 @@ pub async fn get_boarding_pass(
         confirmation_number: res.get::<String, _>("confirmation_number"),
         guest_name: format!(
             "{} {}",
-            res.get::<Option<String>, _>("first_name").unwrap_or_default(),
-            res.get::<Option<String>, _>("last_name").unwrap_or_default()
+            res.get::<Option<String>, _>("first_name")
+                .unwrap_or_default(),
+            res.get::<Option<String>, _>("last_name")
+                .unwrap_or_default()
         )
         .trim()
         .to_string(),

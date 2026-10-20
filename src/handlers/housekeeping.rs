@@ -48,22 +48,25 @@ pub async fn list_housekeeping_tasks(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let items: Vec<HkBoardRow> = rows.iter().map(|r| {
-        let hk: String = r.get("housekeeping_status");
-        let fo: String = r.get("front_office_status");
-        HkBoardRow {
-            id: r.get::<uuid::Uuid, _>("id"),
-            room_number: r.get::<String, _>("room_number"),
-            floor: r.get::<String, _>("floor"),
-            building: r.get::<String, _>("building"),
-            housekeeping_status: hk,
-            front_office_status: fo,
-            last_cleaned_at: r
-                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_cleaned_at"),
-            last_inspected_at: r
-                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_inspected_at"),
-        }
-    }).collect();
+    let items: Vec<HkBoardRow> = rows
+        .iter()
+        .map(|r| {
+            let hk: String = r.get("housekeeping_status");
+            let fo: String = r.get("front_office_status");
+            HkBoardRow {
+                id: r.get::<uuid::Uuid, _>("id"),
+                room_number: r.get::<String, _>("room_number"),
+                floor: r.get::<String, _>("floor"),
+                building: r.get::<String, _>("building"),
+                housekeeping_status: hk,
+                front_office_status: fo,
+                last_cleaned_at: r
+                    .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_cleaned_at"),
+                last_inspected_at: r
+                    .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_inspected_at"),
+            }
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(HkBoardList { items }))
 }
@@ -242,16 +245,22 @@ pub async fn list_tasks(
         (None, Some(asg)) => sqlx::query("SELECT id, room_number, task_type, status, priority, assigned_to, notes, created_at FROM pms.hk_tasks WHERE property_id = $1 AND assigned_to = $2 ORDER BY created_at").bind(property_id).bind(asg).fetch_all(&mut *conn).await,
         (None, None) => sqlx::query("SELECT id, room_number, task_type, status, priority, assigned_to, notes, created_at FROM pms.hk_tasks WHERE property_id = $1 ORDER BY created_at").bind(property_id).fetch_all(&mut *conn).await,
     }.map_err(super::err_db)?;
-    let items: Vec<HkTaskView> = rows.iter().map(|r| { let s: String = r.get("status"); HkTaskView {
-        id: r.get::<uuid::Uuid, _>("id"),
-        room_number: r.get::<Option<String>, _>("room_number"),
-        task_type: r.get::<String, _>("task_type"),
-        status: s,
-        priority: r.get::<String, _>("priority"),
-        assigned_to: r.get::<Option<String>, _>("assigned_to"),
-        notes: r.get::<Option<String>, _>("notes"),
-        created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    }}).collect();
+    let items: Vec<HkTaskView> = rows
+        .iter()
+        .map(|r| {
+            let s: String = r.get("status");
+            HkTaskView {
+                id: r.get::<uuid::Uuid, _>("id"),
+                room_number: r.get::<Option<String>, _>("room_number"),
+                task_type: r.get::<String, _>("task_type"),
+                status: s,
+                priority: r.get::<String, _>("priority"),
+                assigned_to: r.get::<Option<String>, _>("assigned_to"),
+                notes: r.get::<Option<String>, _>("notes"),
+                created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            }
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(HkTaskList { items }))
 }

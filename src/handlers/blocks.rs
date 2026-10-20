@@ -488,10 +488,7 @@ pub async fn update_event_resources(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(EventResourceUpdateResult {
-        event_id,
-        added,
-    }))
+    Ok(Json(EventResourceUpdateResult { event_id, added }))
 }
 
 // ── Events ──

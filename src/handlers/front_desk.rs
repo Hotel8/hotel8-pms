@@ -12,8 +12,8 @@ use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pms::contracts::{
     CheckInRequest, CheckOutRequest, CreateServiceRequestRequest, FrontDeskMoveResult, InHouseList,
-    InHouseStay, MessageList, MessageView, PreCheckInRequest, PreCheckInResult, SentMessage,
-    SendMessageRequest, ServiceRequestCreated, ServiceRequestList, ServiceRequestView,
+    InHouseStay, MessageList, MessageView, PreCheckInRequest, PreCheckInResult, SendMessageRequest,
+    SentMessage, ServiceRequestCreated, ServiceRequestList, ServiceRequestView,
 };
 use sqlx::Row;
 #[utoipa::path(

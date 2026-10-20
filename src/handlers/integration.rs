@@ -19,8 +19,8 @@ use hotel8::pms::contracts::{
     AuditLogEntry, AuditLogList, FlowWorkflowStartRequest, FlowWorkflowStarted, FuncInvokePayload,
     FuncInvokeRequest, FuncInvokeResult, LedgerPostRequest, LedgerPostResult,
     PaymentProcessRequest, PaymentProcessResult, PciChecks, PciCompliance, PostEmailQueued,
-    PostEmailRequest, RateLimitConfig, RateLimits, SendNotificationRequest,
-    SendNotificationResult, UploadImageRequest, UploadImageResult,
+    PostEmailRequest, RateLimitConfig, RateLimits, SendNotificationRequest, SendNotificationResult,
+    UploadImageRequest, UploadImageResult,
 };
 use sqlx::Row;
 
