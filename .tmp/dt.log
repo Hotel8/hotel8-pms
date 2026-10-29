@@ -1,9 +1,0 @@
-   Compiling hotel8-pms v0.1.0 (/home/hamid/dev/sentin8.new/hotel8/hotel8-pms)
-error[E0432]: unresolved import `sentin8::shell::drift_guard`
-  --> tests/openapi_drift.rs:14:21
-   |
-14 | use sentin8::shell::drift_guard::{
-   |                     ^^^^^^^^^^^ could not find `drift_guard` in `shell`
-
-For more information about this error, try `rustc --explain E0432`.
-error: could not compile `hotel8-pms` (test "openapi_drift") due to 1 previous error
